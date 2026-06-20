@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>20 · 词云 Word Cloud</title>
+  <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,wght@0,400;0,500;1,400&family=JetBrains+Mono&family=Noto+Serif+SC:wght@400;500&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/wordcloud@1.2.2/src/wordcloud2.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --paper: #faf9f6; --paper-soft: #f3f1ea; --paper-card: #ffffff;
+      --ink: #1a1a1a; --ink-2: #3d3d3d; --ink-3: #6b6b6b;
+      --rule: #d8d4c8; --rule-soft: #e8e4d8; --accent: #2c5282; --accent-soft: #ebf0f7;
+      --rust: #9c4221; --ochre: #975a16; --moss: #4a6741;
+      --serif: "Source Serif 4", "Noto Serif SC", Georgia, serif;
+      --sans: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+      --mono: "JetBrains Mono", Consolas, monospace;
+    }
+    body { background: var(--paper); color: var(--ink);
+      font-family: var(--serif); padding: 24px 32px; min-height: 100vh; }
+    h1 { font-family: var(--serif); font-size: 26px; font-weight: 500; letter-spacing: -0.01em; }
+    h1 em { font-style: italic; color: var(--accent); font-weight: 400; }
+    .sub { font-family: var(--sans); color: var(--ink-3); font-size: 13px; margin: 6px 0 18px; line-height: 1.5; }
+    .hint, .info, .mapping { font-family: var(--sans); font-size: 12px; color: var(--ink-3); margin-top: 10px; line-height: 1.6; }
+    .hint code, .mapping code { font-family: var(--mono); background: var(--paper-soft); padding: 1px 6px; border-radius: 2px; color: var(--accent); font-size: 11px; }
+    #chart, #cloud, #cy { border: 1px solid var(--rule); border-radius: 2px; background: var(--paper); }
+    svg { display: block; width: 100%; }
+    .controls { display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; align-items: center; }
+    .controls button, .controls select {
+      font-family: var(--sans); background: var(--paper); border: 1px solid var(--rule); color: var(--ink-2);
+      padding: 6px 14px; border-radius: 2px; cursor: pointer; font-size: 12px; transition: all .15s;
+    }
+    .controls button:hover, .controls select:hover { color: var(--accent); border-color: var(--accent); }
+    .controls button.active { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+    .controls label { color: var(--ink-3); font-family: var(--sans); font-size: 12px; }
+    .legend { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 12px; font-family: var(--sans); font-size: 11px; color: var(--ink-2); }
+    .legend span { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+    .legend i { width: 12px; height: 12px; display: inline-block; }
+    .legend .dot { border-radius: 50%; }
+    .tip { position: fixed; pointer-events: none; opacity: 0;
+      background: #fff; border: 1px solid var(--ink); padding: 10px 14px; border-radius: 2px;
+      font-family: var(--sans); font-size: 12px; max-width: 260px; line-height: 1.6;
+      transition: opacity .12s; box-shadow: 0 4px 16px rgba(0,0,0,0.08); }
+    .node-label, .face-label { font-family: var(--sans); font-size: 11px; fill: var(--ink); }
+    .ridge-label { font-family: var(--sans); font-size: 12px; font-weight: 600; }
+  
+    /* ===== 移动端响应式 ===== */
+    @media (max-width: 768px) {
+      body { padding: 16px 14px; }
+      h1 { font-size: 22px; }
+      .sub { font-size: 12px; margin-bottom: 12px; }
+      .controls { gap: 4px; }
+      .controls button, .controls select { padding: 5px 10px; font-size: 11px; }
+      .controls label { font-size: 11px; }
+      #chart, svg, #cloud, #cy {
+        height: 60vh !important;
+        min-height: 360px !important;
+      }
+      .hint, .info, .mapping, .legend { font-size: 11px; }
+      .legend { gap: 10px; }
+      .node-label, .face-label, .ridge-label { font-size: 10px; }
+    }
+    @media (max-width: 420px) {
+      body { padding: 12px 10px; }
+      h1 { font-size: 20px; }
+      #chart, svg, #cloud, #cy { height: 55vh !important; min-height: 320px !important; }
+    }
+  </style>
+</head>
+<body>
+  <h1>词云 <em>Word Cloud</em></h1>
+  <div class="sub">词频可视化 · 字号=频率 · 旋转/配色增美感 · 悬浮看词频</div>
+  <div class="controls">
+    <button class="active" data-set="ai">🤖 AI 论文词</button>
+    <button data-set="movie">🎬 影评关键词</button>
+    <button data-set="shopping">🛒 电商评价</button>
+    <label>形状:</label>
+    <select id="shape">
+      <option value="square">默认</option>
+      <option value="circle">圆形</option>
+      <option value="cardioid">心形</option>
+      <option value="diamond">菱形</option>
+      <option value="star">星形</option>
+    </select>
+    <label>旋转:</label>
+    <select id="rotate">
+      <option value="0">不旋转</option>
+      <option value="45">45°</option>
+      <option value="90" selected>90°</option>
+      <option value="mix">混合</option>
+    </select>
+  </div>
+  <div id="cloud"><canvas id="canvas"></canvas></div>
+  <div class="info" id="info"></div>
+
+  <script>
+    const DATASETS = {
+      ai: [
+        ['深度学习', 90], ['神经网络', 85], ['Transformer', 80], ['注意力机制', 75],
+        ['预训练', 70], ['微调', 65], ['GPT', 60], ['BERT', 58], ['大规模', 55],
+        ['多模态', 52], ['强化学习', 48], ['生成模型', 45], ['RLHF', 42], ['对齐', 40],
+        ['涌现', 38], ['幻觉', 35], ['推理', 33], ['上下文', 30], ['嵌入', 28],
+        ['向量', 26], ['梯度', 24], ['反向传播', 22], ['卷积', 20], ['循环', 18],
+        ['序列', 17], ['编码器', 16], ['解码器', 15], ['自注意力', 14], ['位置编码', 13],
+        ['残差', 12], ['归一化', 11], ['dropout', 10], ['batch', 9], ['softmax', 8],
+      ],
+      movie: [
+        ['剧情', 88], ['演技', 82], ['特效', 78], ['配乐', 70], ['摄影', 65],
+        ['节奏', 60], ['反转', 55], ['感人', 52], ['震撼', 50], ['细腻', 45],
+        ['演员', 42], ['导演', 40], ['剧本', 38], ['台词', 35], ['氛围', 32],
+        ['代入感', 30], ['逻辑', 28], ['结局', 26], ['细节', 24], ['伏笔', 22],
+        ['泪点', 20], ['笑点', 18], ['配音', 16], ['美术', 14], ['剪辑', 12],
+      ],
+      shopping: [
+        ['性价比', 92], ['物流', 85], ['包装', 75], ['质量', 88], ['客服', 70],
+        ['颜色', 65], ['尺寸', 60], ['材质', 58], ['做工', 55], ['款式', 52],
+        ['好评', 50], ['回购', 48], ['推荐', 45], ['正品', 42], ['发货', 40],
+        ['退货', 35], ['瑕疵', 30], ['色差', 28], ['偏小', 25], ['偏大', 23],
+        ['舒适', 38], ['耐穿', 32], ['保暖', 26], ['透气', 22], ['时尚', 20],
+      ]
+    };
+
+    const palette = ['#2c5282', '#9c4221', '#975a16', '#4a6741', '#6b5d8a', '#2d7a7a', '#8a5a2b', '#3d5a80'];
+
+    let curSet = 'ai', curShape = 'square', curRotate = '90';
+
+    function getRotate() {
+      if (curRotate === '0') return 0;
+      if (curRotate === '45') return 45;
+      if (curRotate === '90') { return (word, idx) => idx % 2 === 0 ? 0 : 90; }
+      // mix
+      return (word, idx) => [0, 45, 90, -45][idx % 4];
+    }
+
+    function render() {
+      const canvas = document.getElementById('canvas');
+      const w = document.getElementById('cloud').clientWidth;
+      const h = document.getElementById('cloud').clientHeight;
+      canvas.width = w; canvas.height = h;
+
+      WordCloud(canvas, {
+        list: DATASETS[curSet],
+        gridSize: Math.round(8),
+        weightFactor: (size) => size * 1.2,
+        fontFamily: 'Microsoft YaHei, sans-serif',
+        color: (word, weight, idx) => palette[idx % palette.length],
+        backgroundColor: 'transparent',
+        rotateRatio: curRotate === '0' ? 0 : 1,
+        rotationSteps: 2,
+        minRotation: -Math.PI / 2,
+        maxRotation: Math.PI / 2,
+        rotation: getRotate() === 0 ? 0 : undefined,
+        shape: curShape,
+        shuffle: false,
+        drawOutOfBound: false,
+        hover: (item, dim, ev) => {
+          const info = document.getElementById('info');
+          if (item) {
+            info.style.opacity = 1;
+            info.innerHTML = `<b style="color:${palette[item[3] % palette.length]}">${item[0]}</b> · 权重 ${item[1]}`;
+          } else {
+            info.style.opacity = 0;
+          }
+        },
+        click: (item) => {
+          if (item) alert(`点击了词:${item[0]} (权重 ${item[1]})`);
+        }
+      });
+
+      // 因为 wordcloud2 在 weightFactor 后追加 idx,我们手动重染色:用 backgroundColor trick
+      // 实际上 color 函数已生效;item[3] 是 wordcloud 自动追加的索引
+    }
+
+    // wordcloud2 不支持自定义 color 返回函数直接接收 idx,改用 weightFactor
+    // 重写更稳妥:用 color 回调按 weight 区间上色
+    function renderColor() {
+      const canvas = document.getElementById('canvas');
+      const w = document.getElementById('cloud').clientWidth;
+      const h = document.getElementById('cloud').clientHeight;
+      canvas.width = w; canvas.height = h;
+
+      const data = DATASETS[curSet];
+      const maxW = Math.max(...data.map(d => d[1]));
+
+      WordCloud(canvas, {
+        list: data,
+        gridSize: 8,
+        weightFactor: 2,
+        fontFamily: 'Microsoft YaHei, sans-serif',
+        color: (word, weight) => {
+          const ratio = weight / maxW;
+          if (ratio > 0.7) return '#975a16';
+          if (ratio > 0.5) return '#975a16';
+          if (ratio > 0.3) return '#9c4221';
+          return '#2c5282';
+        },
+        backgroundColor: 'transparent',
+        rotateRatio: curRotate === '0' ? 0 : 0.5,
+        minRotation: curRotate === '0' ? 0 : 0,
+        maxRotation: curRotate === '0' ? 0 : (curRotate === '90' ? Math.PI / 2 : Math.PI / 4),
+        shape: curShape,
+        shuffle: false,
+        drawOutOfBound: false,
+        hover: (item) => {
+          const info = document.getElementById('info');
+          if (item) {
+            info.style.opacity = 1;
+            info.innerHTML = `<b>${item[0]}</b> · 权重 <b style="color:#9c4221">${item[1]}</b>`;
+          } else info.style.opacity = 0;
+        }
+      });
+    }
+
+    renderColor();
+
+    document.querySelectorAll('.controls button[data-set]').forEach(btn => {
+      btn.onclick = () => {
+        document.querySelectorAll('.controls button[data-set]').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active'); curSet = btn.dataset.set; renderColor();
+      };
+    });
+    document.getElementById('shape').onchange = function() { curShape = this.value; renderColor(); };
+    document.getElementById('rotate').onchange = function() { curRotate = this.value; renderColor(); };
+    window.addEventListener('resize', () => {
+      clearTimeout(window._wcT);
+      window._wcT = setTimeout(renderColor, 200);
+    });
+  </script>
+</body>
+</html>

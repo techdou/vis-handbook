@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>09 · DTW 动态时间规整</title>
+  <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,wght@0,400;0,500;1,400&family=JetBrains+Mono&family=Noto+Serif+SC:wght@400;500&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --paper: #faf9f6; --paper-soft: #f3f1ea; --paper-card: #ffffff;
+      --ink: #1a1a1a; --ink-2: #3d3d3d; --ink-3: #6b6b6b;
+      --rule: #d8d4c8; --rule-soft: #e8e4d8; --accent: #2c5282; --accent-soft: #ebf0f7;
+      --rust: #9c4221; --ochre: #975a16; --moss: #4a6741;
+      --serif: "Source Serif 4", "Noto Serif SC", Georgia, serif;
+      --sans: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+      --mono: "JetBrains Mono", Consolas, monospace;
+    }
+    body { background: var(--paper); color: var(--ink);
+      font-family: var(--serif); padding: 24px 32px; min-height: 100vh; }
+    h1 { font-family: var(--serif); font-size: 26px; font-weight: 500; letter-spacing: -0.01em; }
+    h1 em { font-style: italic; color: var(--accent); font-weight: 400; }
+    .sub { font-family: var(--sans); color: var(--ink-3); font-size: 13px; margin: 6px 0 18px; line-height: 1.5; }
+    .hint, .info, .mapping { font-family: var(--sans); font-size: 12px; color: var(--ink-3); margin-top: 10px; line-height: 1.6; }
+    .hint code, .mapping code { font-family: var(--mono); background: var(--paper-soft); padding: 1px 6px; border-radius: 2px; color: var(--accent); font-size: 11px; }
+    #chart, #cloud, #cy { border: 1px solid var(--rule); border-radius: 2px; background: var(--paper); }
+    svg { display: block; width: 100%; }
+    .controls { display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; align-items: center; }
+    .controls button, .controls select {
+      font-family: var(--sans); background: var(--paper); border: 1px solid var(--rule); color: var(--ink-2);
+      padding: 6px 14px; border-radius: 2px; cursor: pointer; font-size: 12px; transition: all .15s;
+    }
+    .controls button:hover, .controls select:hover { color: var(--accent); border-color: var(--accent); }
+    .controls button.active { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+    .controls label { color: var(--ink-3); font-family: var(--sans); font-size: 12px; }
+    .legend { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 12px; font-family: var(--sans); font-size: 11px; color: var(--ink-2); }
+    .legend span { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+    .legend i { width: 12px; height: 12px; display: inline-block; }
+    .legend .dot { border-radius: 50%; }
+    .tip { position: fixed; pointer-events: none; opacity: 0;
+      background: #fff; border: 1px solid var(--ink); padding: 10px 14px; border-radius: 2px;
+      font-family: var(--sans); font-size: 12px; max-width: 260px; line-height: 1.6;
+      transition: opacity .12s; box-shadow: 0 4px 16px rgba(0,0,0,0.08); }
+    .node-label, .face-label { font-family: var(--sans); font-size: 11px; fill: var(--ink); }
+    .ridge-label { font-family: var(--sans); font-size: 12px; font-weight: 600; }
+  
+    /* ===== 移动端响应式 ===== */
+    @media (max-width: 768px) {
+      body { padding: 16px 14px; }
+      h1 { font-size: 22px; }
+      .sub { font-size: 12px; margin-bottom: 12px; }
+      .controls { gap: 4px; }
+      .controls button, .controls select { padding: 5px 10px; font-size: 11px; }
+      .controls label { font-size: 11px; }
+      #chart, svg, #cloud, #cy {
+        height: 60vh !important;
+        min-height: 360px !important;
+      }
+      .hint, .info, .mapping, .legend { font-size: 11px; }
+      .legend { gap: 10px; }
+      .node-label, .face-label, .ridge-label { font-size: 10px; }
+    }
+    @media (max-width: 420px) {
+      body { padding: 12px 10px; }
+      h1 { font-size: 20px; }
+      #chart, svg, #cloud, #cy { height: 55vh !important; min-height: 320px !important; }
+    }
+    @media (max-width: 768px) {
+      .panels { grid-template-columns: 1fr !important; }
+      .stats { gap: 12px !important; }
+      .stats b { font-size: 15px !important; }
+    }
+  </style>
+</head>
+<body>
+  <h1>DTW 动态时间规整 Dynamic Time Warping</h1>
+  <div class="sub">序列对齐 · 代价矩阵 + 最优路径 · 比欧氏距离更鲁棒的时间序列相似度</div>
+  <div class="controls">
+    <button class="active" data-set="voice">🗣️ 语音对齐</button>
+    <button data-set="ecg">💓 心电波形</button>
+    <button data-set="stock">📈 K 线形态</button>
+    <button id="regen">🎲 重新生成</button>
+    <label>对齐窗口约束:</label>
+    <input type="range" id="window" min="0" max="20" value="20" style="width:120px" />
+    <span id="winLabel" style="color:#6b6b6b;font-size:12px">无约束</span>
+  </div>
+
+  <div class="panels">
+    <div class="panel">
+      <div class="panel-title">📊 序列对齐视图(S 系列 = 蓝,T 系列 = 青,连线 = DTW 对齐)</div>
+      <svg id="align"></svg>
+    </div>
+    <div class="panel">
+      <div class="panel-title">🔥 代价矩阵 + 最优扭曲路径(黄线)</div>
+      <svg id="matrix"></svg>
+    </div>
+  </div>
+  <div class="stats">
+    <div>DTW 距离:<b id="dtwDist">-</b></div>
+    <div>欧氏距离:<b id="eucDist">-</b></div>
+    <div>序列 S 长度:<b id="lenS">-</b></div>
+    <div>序列 T 长度:<b id="lenT">-</b></div>
+  </div>
+
+  <script>
+    /* ---------- DTW 算法 ---------- */
+    function dtw(s, t, window = Infinity) {
+      const n = s.length, m = t.length;
+      const w = Math.max(window, Math.abs(n - m));
+      const cost = Array.from({ length: n + 1 }, () => Array(m + 1).fill(Infinity));
+      cost[0][0] = 0;
+      for (let i = 1; i <= n; i++) {
+        for (let j = Math.max(1, i - w); j <= Math.min(m, i + w); j++) {
+          const d = Math.abs(s[i - 1] - t[j - 1]);
+          cost[i][j] = d + Math.min(cost[i - 1][j], cost[i][j - 1], cost[i - 1][j - 1]);
+        }
+      }
+      // 回溯路径
+      const path = [];
+      let i = n, j = m;
+      while (i > 0 && j > 0) {
+        path.push([i - 1, j - 1]);
+        const c = [cost[i - 1][j - 1], cost[i - 1][j], cost[i][j - 1]];
+        const minIdx = c.indexOf(Math.min(...c));
+        if (minIdx === 0) { i--; j--; }
+        else if (minIdx === 1) { i--; }
+        else { j--; }
+      }
+      path.reverse();
+      return { distance: cost[n][m], path };
+    }
+
+    /* ---------- 数据生成 ---------- */
+    function genVoice() {
+      // 同一句话快慢说,但形状相似
+      const baseT = i => 50 + 30 * Math.sin(i * 0.5) * Math.exp(-i / 30);
+      const s = d3.range(0, 40, 1).map(baseT);
+      const t = d3.range(0, 40, 0.7).map(baseT).slice(0, 28);
+      return { s: s.map(v => v + (Math.random() - 0.5) * 4),
+               t: t.map(v => v + (Math.random() - 0.5) * 4) };
+    }
+    function genECG() {
+      const beat = (phase, freq) => {
+        // 简化心电:基线 + QRS 峰
+        let v = 50;
+        const p = (phase * freq) % 1;
+        if (p > 0.4 && p < 0.5) v += 60 * Math.sin((p - 0.4) * 30); // R 峰
+        else if (p > 0.38 && p < 0.42) v -= 15;
+        else if (p > 0.5 && p < 0.55) v -= 25;
+        return v + (Math.random() - 0.5) * 3;
+      };
+      const s = d3.range(0, 50, 0.5).map(i => beat(i, 0.1));
+      const t = d3.range(0, 50, 0.45).map(i => beat(i, 0.115));
+      return { s, t };
+    }
+    function genStock() {
+      // 两个相似但节奏不同的 K 线走势
+      const shape = x => 50 + 20 * Math.sin(x * 0.3) + 10 * Math.sin(x * 0.7);
+      const s = d3.range(0, 35, 1).map(x => shape(x) + (Math.random() - 0.5) * 3);
+      const t = d3.range(0, 35, 1.3).map(x => shape(x) + (Math.random() - 0.5) * 3);
+      return { s, t };
+    }
+    const GENS = { voice: genVoice, ecg: genECG, stock: genStock };
+
+    let curSet = 'voice', curWin = 20;
+
+    function render() {
+      const { s, t } = GENS[curSet]();
+      const winSize = curWin === 20 ? Infinity : curWin;
+      const { distance, path } = dtw(s, t, winSize);
+      const eucDist = s.length === t.length
+        ? Math.sqrt(s.reduce((a, v, i) => a + (v - t[i]) ** 2, 2))
+        : NaN;
+
+      document.getElementById('dtwDist').textContent = distance.toFixed(1);
+      document.getElementById('eucDist').textContent = isNaN(eucDist) ? '长度不等' : eucDist.toFixed(1);
+      document.getElementById('lenS').textContent = s.length;
+      document.getElementById('lenT').textContent = t.length;
+
+      drawAlign(s, t, path);
+      drawMatrix(s, t, path, winSize);
+    }
+
+    function drawAlign(s, t, path) {
+      const svg = d3.select('#align');
+      svg.selectAll('*').remove();
+      const W = svg.node().clientWidth || 500;
+      const H = 320;
+      svg.attr('viewBox', `0 0 ${W} ${H}`).attr('height', H);
+      const m = { top: 20, right: 20, bottom: 30, left: 40 };
+
+      const all = [...s, ...t];
+      const y = d3.scaleLinear().domain([Math.min(...all) - 5, Math.max(...all) + 5]).range([H - m.bottom, m.top]);
+      const xs = d3.scaleLinear().domain([0, s.length - 1]).range([m.left, W - m.right]);
+      const xt = d3.scaleLinear().domain([0, t.length - 1]).range([m.left, W - m.right]);
+
+      // 对齐连线
+      svg.append('g').selectAll('line')
+        .data(path)
+        .join('line')
+        .attr('x1', p => xs(p[0])).attr('y1', p => y(s[p[0]]))
+        .attr('x2', p => xt(p[1])).attr('y2', p => y(t[p[1]]))
+        .attr('stroke', '#975a16').attr('stroke-width', 0.6).attr('stroke-opacity', 0.5);
+
+      // S 序列
+      const lineGen = (scale, data) => d3.line()
+        .x((d, i) => scale(i)).y(d => y(d)).curve(d3.curveMonotoneX);
+      svg.append('path').attr('d', lineGen(xs, s)(s))
+         .attr('fill', 'none').attr('stroke', '#2c5282').attr('stroke-width', 2.5);
+      svg.append('path').attr('d', lineGen(xt, t)(t))
+         .attr('fill', 'none').attr('stroke', '#9c4221').attr('stroke-width', 2.5);
+
+      // 散点
+      svg.append('g').selectAll('circle.s').data(s).join('circle')
+        .attr('cx', (d, i) => xs(i)).attr('cy', d => y(d)).attr('r', 3).attr('fill', '#2c5282');
+      svg.append('g').selectAll('circle.t').data(t).join('circle')
+        .attr('cx', (d, i) => xt(i)).attr('cy', d => y(d)).attr('r', 3).attr('fill', '#9c4221');
+
+      // 轴
+      svg.append('g').attr('transform', `translate(0,${H - m.bottom})`)
+         .call(d3.axisBottom(xs).ticks(6)).selectAll('text').style('fill', '#6b6b6b');
+      svg.append('g').attr('transform', `translate(${m.left},0)`)
+         .call(d3.axisLeft(y).ticks(5)).selectAll('text').style('fill', '#6b6b6b');
+
+      // 图例
+      svg.append('text').attr('x', W - 120).attr('y', m.top + 4)
+         .style('fill', '#2c5282').style('font-size', '11px').text('● 序列 S');
+      svg.append('text').attr('x', W - 60).attr('y', m.top + 4)
+         .style('fill', '#9c4221').style('font-size', '11px').text('● 序列 T');
+    }
+
+    function drawMatrix(s, t, path, winSize) {
+      const svg = d3.select('#matrix');
+      svg.selectAll('*').remove();
+      const W = svg.node().clientWidth || 400;
+      const H = 320;
+      svg.attr('viewBox', `0 0 ${W} ${H}`).attr('height', H);
+      const m = { top: 20, right: 20, bottom: 40, left: 40 };
+      const n = s.length, mm = t.length;
+      const cs = Math.min((W - m.left - m.right) / n, (H - m.top - m.bottom) / mm);
+
+      // 计算代价矩阵
+      const cost = Array.from({ length: n }, () => Array(mm).fill(0));
+      let maxC = 0;
+      for (let i = 0; i < n; i++) for (let j = 0; j < mm; j++) {
+        cost[i][j] = Math.abs(s[i] - t[j]);
+        maxC = Math.max(maxC, cost[i][j]);
+      }
+      const color = d3.scaleSequential(d3.interpolateRgbBasis(['#ffffff', '#2c5282', '#975a16', '#975a16']))
+                     .domain([0, maxC]);
+
+      // 画格子
+      for (let i = 0; i < n; i++) for (let j = 0; j < mm; j++) {
+        svg.append('rect')
+          .attr('x', m.left + i * cs).attr('y', m.top + (mm - 1 - j) * cs)
+          .attr('width', cs - 0.5).attr('height', cs - 0.5)
+          .attr('fill', color(cost[i][j]));
+      }
+
+      // 画路径(注意 y 轴翻转)
+      const pathLine = d3.line()
+        .x(p => m.left + (p[0] + 0.5) * cs)
+        .y(p => m.top + (mm - 0.5 - p[1]) * cs);
+      svg.append('path').attr('d', pathLine(path))
+         .attr('fill', 'none').attr('stroke', '#fff').attr('stroke-width', 2);
+
+      // 轴
+      svg.append('g').attr('transform', `translate(0,${H - m.bottom})`)
+         .call(d3.axisBottom(d3.scaleLinear().domain([0, n]).range([m.left, m.left + n * cs])).ticks(5))
+         .selectAll('text').style('fill', '#6b6b6b');
+      svg.append('text').attr('x', m.left + n * cs / 2).attr('y', H - 6)
+         .attr('text-anchor', 'middle').style('fill', '#2c5282').style('font-size', '11px').text('序列 S →');
+      svg.append('g').attr('transform', `translate(${m.left},0)`)
+         .call(d3.axisLeft(d3.scaleLinear().domain([0, mm]).range([m.top + mm * cs, m.top])).ticks(5))
+         .selectAll('text').style('fill', '#6b6b6b');
+      svg.append('text').attr('transform', `translate(12,${m.top + mm * cs / 2}) rotate(-90)`)
+         .attr('text-anchor', 'middle').style('fill', '#9c4221').style('font-size', '11px').text('序列 T →');
+    }
+
+    render();
+
+    document.querySelectorAll('.controls button[data-set]').forEach(btn => {
+      btn.onclick = () => {
+        document.querySelectorAll('.controls button[data-set]').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active'); curSet = btn.dataset.set; render();
+      };
+    });
+    document.getElementById('regen').onclick = render;
+    document.getElementById('window').oninput = function() {
+      curWin = +this.value;
+      document.getElementById('winLabel').textContent = curWin === 20 ? '无约束' : `±${curWin}`;
+      render();
+    };
+    window.addEventListener('resize', render);
+  </script>
+</body>
+</html>

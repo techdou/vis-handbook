@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>30 · 漏斗图 Funnel Chart</title>
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,wght@0,400;0,500;1,400&family=JetBrains+Mono&family=Noto+Serif+SC:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --paper: #faf9f6; --ink: #1a1a1a; --ink-2: #3d3d3d; --ink-3: #6b6b6b;
+      --rule: #d8d4c8; --accent: #2c5282;
+      --serif: "Source Serif 4", "Noto Serif SC", Georgia, serif;
+      --sans: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+    }
+    body { background: var(--paper); color: var(--ink); font-family: var(--serif); padding: 24px 32px; min-height: 100vh; }
+    h1 { font-family: var(--serif); font-size: 26px; font-weight: 500; }
+    h1 em { font-style: italic; color: var(--accent); font-weight: 400; }
+    .sub { font-family: var(--sans); color: var(--ink-3); font-size: 13px; margin: 6px 0 18px; line-height: 1.5; }
+    #chart { width: 100%; height: calc(100vh - 160px); min-height: 500px; border: 1px solid var(--rule); border-radius: 2px; background: var(--paper); }
+    .controls { display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; }
+    .controls button { font-family: var(--sans); background: var(--paper); border: 1px solid var(--rule); color: var(--ink-2); padding: 6px 14px; border-radius: 2px; cursor: pointer; font-size: 12px; transition: all .15s; }
+    .controls button:hover { color: var(--accent); border-color: var(--accent); }
+    .controls button.active { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+    @media (max-width: 768px) {
+      body { padding: 16px 14px; } h1 { font-size: 22px; } .sub { font-size: 12px; margin-bottom: 12px; }
+      .controls { gap: 4px; } .controls button { padding: 5px 10px; font-size: 11px; }
+      #chart { height: calc(100vh - 180px) !important; min-height: 380px !important; }
+    }
+    @media (max-width: 420px) { body { padding: 12px 10px; } h1 { font-size: 20px; } #chart { height: calc(100vh - 160px) !important; min-height: 340px !important; } }
+  </style>
+</head>
+<body>
+  <h1>漏斗图 <em>Funnel Chart</em></h1>
+  <div class="sub">转化漏斗 · 倒梯形 · 每层收窄=流失率 · 运营分析标配</div>
+  <div class="controls">
+    <button class="active" data-set="ecom">🛒 电商转化</button>
+    <button data-set="aarr">📈 AARRR 增长</button>
+    <button data-set="recruit">👔 招聘流程</button>
+  </div>
+  <div id="chart"></div>
+
+  <script>
+    const chart = echarts.init(document.getElementById('chart'));
+    const palette = ['#2c5282', '#3d5a80', '#9c4221', '#975a16', '#4a6741', '#6b5d8a'];
+
+    const DATASETS = {
+      ecom: {
+        title: '电商用户转化漏斗',
+        data: [
+          { value: 100000, name: '访问首页' },
+          { value: 45000, name: '浏览商品' },
+          { value: 18000, name: '加入购物车' },
+          { value: 9000, name: '发起结算' },
+          { value: 6500, name: '完成支付' },
+          { value: 2800, name: '复购' },
+        ]
+      },
+      aarr: {
+        title: 'AARRR 海盗增长模型',
+        data: [
+          { value: 50000, name: '获取 Acquisition' },
+          { value: 32000, name: '激活 Activation' },
+          { value: 18000, name: '留存 Retention' },
+          { value: 8000, name: '变现 Revenue' },
+          { value: 3500, name: '推荐 Referral' },
+        ]
+      },
+      recruit: {
+        title: '招聘流程漏斗',
+        data: [
+          { value: 800, name: '收到简历' },
+          { value: 320, name: '初筛通过' },
+          { value: 150, name: '笔试通过' },
+          { value: 80, name: '面试通过' },
+          { value: 45, name: '发放 Offer' },
+          { value: 32, name: '成功入职' },
+        ]
+      }
+    };
+
+    function render(key) {
+      const d = DATASETS[key];
+      // 计算转化率
+      const first = d.data[0].value;
+      chart.setOption({
+        backgroundColor: 'transparent',
+        title: { text: d.title, left: 'center', textStyle: { fontFamily: 'Source Serif 4, serif', fontSize: 14, color: '#6b6b6b', fontWeight: 400 } },
+        tooltip: {
+          formatter: p => {
+            const rate = (p.value / first * 100).toFixed(1);
+            return `<b>${p.name}</b><br/>数量: ${p.value.toLocaleString()}<br/>总体转化率: <b style="color:#9c4221">${rate}%</b>`;
+          }
+        },
+        series: [{
+          type: 'funnel',
+          data: d.data.map((item, i) => ({
+            ...item,
+            itemStyle: { color: palette[i % palette.length], borderColor: '#faf9f6', borderWidth: 2 }
+          })),
+          left: '15%', right: '15%', top: 70, bottom: 40,
+          sort: 'descending',
+          gap: 4,
+          label: {
+            show: true, position: 'inside',
+            formatter: p => `${p.name}\n${p.value.toLocaleString()}`,
+            color: '#faf9f6', fontFamily: 'sans-serif', fontSize: 13, fontWeight: 600
+          },
+          labelLine: { show: false },
+          emphasis: { label: { fontSize: 15 } },
+          animationDuration: 1200
+        }]
+      }, true);
+    }
+
+    render('ecom');
+    document.querySelectorAll('.controls button').forEach(btn => {
+      btn.onclick = () => {
+        document.querySelectorAll('.controls button').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active'); render(btn.dataset.set);
+      };
+    });
+    window.addEventListener('resize', () => chart.resize());
+  </script>
+</body>
+</html>

@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>28 · 径向树 Radial Tree</title>
+  <script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,wght@0,400;0,500;1,400&family=JetBrains+Mono&family=Noto+Serif+SC:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --paper: #faf9f6; --ink: #1a1a1a; --ink-2: #3d3d3d; --ink-3: #6b6b6b;
+      --rule: #d8d4c8; --accent: #2c5282;
+      --serif: "Source Serif 4", "Noto Serif SC", Georgia, serif;
+      --sans: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+    }
+    body { background: var(--paper); color: var(--ink); font-family: var(--serif); padding: 24px 32px; min-height: 100vh; }
+    h1 { font-family: var(--serif); font-size: 26px; font-weight: 500; }
+    h1 em { font-style: italic; color: var(--accent); font-weight: 400; }
+    .sub { font-family: var(--sans); color: var(--ink-3); font-size: 13px; margin: 6px 0 18px; line-height: 1.5; }
+    svg { display: block; width: 100%; border: 1px solid var(--rule); border-radius: 2px; background: var(--paper); }
+    .controls { display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; }
+    .controls button { font-family: var(--sans); background: var(--paper); border: 1px solid var(--rule); color: var(--ink-2); padding: 6px 14px; border-radius: 2px; cursor: pointer; font-size: 12px; transition: all .15s; }
+    .controls button:hover { color: var(--accent); border-color: var(--accent); }
+    .controls button.active { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+    .hint { font-family: var(--sans); font-size: 12px; color: var(--ink-3); margin-top: 10px; line-height: 1.6; }
+    .tip { position: fixed; pointer-events: none; opacity: 0; background: #fff; border: 1px solid var(--ink); padding: 8px 12px; border-radius: 2px; font-family: var(--sans); font-size: 12px; transition: opacity .12s; box-shadow: 0 4px 16px rgba(0,0,0,0.08); }
+    @media (max-width: 768px) {
+      body { padding: 16px 14px; } h1 { font-size: 22px; } .sub { font-size: 12px; margin-bottom: 12px; }
+      .controls { gap: 4px; } .controls button { padding: 5px 10px; font-size: 11px; }
+      svg { height: calc(100vh - 180px) !important; min-height: 380px !important; }
+      .hint { font-size: 11px; }
+    }
+    @media (max-width: 420px) { body { padding: 12px 10px; } h1 { font-size: 20px; } svg { height: calc(100vh - 160px) !important; min-height: 340px !important; } }
+  </style>
+</head>
+<body>
+  <h1>径向树 <em>Radial Tidy Tree</em></h1>
+  <div class="sub">放射状层级 · 根在中心 · 枝叶向外 · 适合深层级结构</div>
+  <div class="controls">
+    <button class="active" data-set="bio">🧬 生物分类</button>
+    <button data-set="org">🏢 组织架构</button>
+    <button data-set="knowledge">📚 知识体系</button>
+  </div>
+  <svg id="chart"></svg>
+  <div class="hint">💡 根节点在中心,每一层是一个同心圆环。悬停节点看路径。</div>
+  <div class="tip" id="tip"></div>
+
+  <script>
+    const svg = d3.select('#chart');
+    const palette = ['#2c5282', '#9c4221', '#975a16', '#4a6741', '#6b5d8a'];
+    const tip = d3.select('#tip');
+
+    const DATASETS = {
+      bio: { name: '脊椎动物', children: [
+        { name: '哺乳纲', children: [
+          { name: '灵长目', children: [{ name: '人科' }, { name: '猴科' }] },
+          { name: '食肉目', children: [{ name: '犬科' }, { name: '猫科' }, { name: '熊科' }] },
+          { name: '啮齿目', children: [{ name: '鼠科' }, { name: '松鼠科' }] },
+        ]},
+        { name: '鸟纲', children: [
+          { name: '雀形目', children: [{ name: '鸦科' }, { name: '燕科' }] },
+          { name: '鹰形目', children: [{ name: '鹰科' }, { name: '鹫科' }] },
+        ]},
+        { name: '爬行纲', children: [
+          { name: '蛇目', children: [{ name: '蟒科' }, { name: '蝰科' }] },
+          { name: '鳄目' },
+        ]},
+        { name: '鱼纲', children: [
+          { name: '鲈形目' }, { name: '鲤形目' },
+        ]},
+      ]},
+      org: { name: 'CEO', children: [
+        { name: 'CTO', children: [
+          { name: '研发总监', children: [{ name: '前端组' }, { name: '后端组' }, { name: '算法组' }] },
+          { name: '运维总监', children: [{ name: '基础架构' }, { name: '安全' }] },
+        ]},
+        { name: 'CPO', children: [
+          { name: '产品总监', children: [{ name: '产品A' }, { name: '产品B' }] },
+          { name: '设计总监', children: [{ name: 'UI' }, { name: 'UX' }] },
+        ]},
+        { name: 'CMO', children: [
+          { name: '品牌' }, { name: '增长' }, { name: '内容' },
+        ]},
+      ]},
+      knowledge: { name: '计算机科学', children: [
+        { name: '算法', children: [
+          { name: '排序', children: [{ name: '快排' }, { name: '归并' }] },
+          { name: '图论', children: [{ name: '最短路' }, { name: 'MST' }] },
+          { name: 'DP' },
+        ]},
+        { name: '系统', children: [
+          { name: '操作系统', children: [{ name: '进程' }, { name: '内存' }] },
+          { name: '网络', children: [{ name: 'TCP/IP' }, { name: 'HTTP' }] },
+        ]},
+        { name: 'AI', children: [
+          { name: '机器学习', children: [{ name: '监督' }, { name: '无监督' }] },
+          { name: '深度学习', children: [{ name: 'CNN' }, { name: 'Transformer' }] },
+        ]},
+      ]},
+    };
+
+    function render(key) {
+      const d = DATASETS[key];
+      svg.selectAll('*').remove();
+      const W = svg.node().clientWidth || 800;
+      const H = Math.max(500, Math.min(680, W * 0.62));
+      svg.attr('viewBox', `${-W/2} ${-H/2} ${W} ${H}`).attr('width', '100%').attr('height', H);
+
+      const radius = Math.min(W, H) / 2 - 50;
+
+      const root = d3.hierarchy(d);
+      d3.tree().size([2 * Math.PI, radius]).separation((a, b) => (a.parent === b.parent ? 1 : 2) / a.depth)(root);
+
+      const g = svg.append('g');
+
+      // 链接(放射曲线)
+      g.selectAll('path')
+        .data(root.links())
+        .join('path')
+        .attr('fill', 'none')
+        .attr('stroke', d => palette[d.target.depth % palette.length])
+        .attr('stroke-opacity', 0.5)
+        .attr('stroke-width', 1.2)
+        .attr('d', d3.linkRadial().angle(d => d.x).radius(d => d.y));
+
+      // 节点
+      const nodes = g.selectAll('g')
+        .data(root.descendants())
+        .join('g')
+        .attr('transform', d => `rotate(${d.x * 180 / Math.PI - 90}) translate(${d.y},0)`)
+        .style('cursor', 'pointer');
+
+      nodes.append('circle')
+        .attr('r', d => d.children ? 5 : 3.5)
+        .attr('fill', d => d.children ? '#fff' : palette[d.depth % palette.length])
+        .attr('stroke', d => palette[d.depth % palette.length])
+        .attr('stroke-width', 2);
+
+      // 标签:右半圆文字正常,左半圆翻转
+      nodes.append('text')
+        .attr('dy', '0.32em')
+        .attr('x', d => (d.x >= Math.PI) === (d.x < 2 * Math.PI / 2 + Math.PI / 2) ? 8 : -8)
+        .attr('text-anchor', d => {
+          const deg = d.x * 180 / Math.PI - 90;
+          return (deg >= 90 || deg <= -90) ? 'end' : 'start';
+        })
+        .attr('transform', d => {
+          const deg = d.x * 180 / Math.PI - 90;
+          return (deg >= 90 || deg <= -90) ? 'rotate(180)' : null;
+        })
+        .style('fill', '#1a1a1a')
+        .style('font-family', 'sans-serif')
+        .style('font-size', '10.5px')
+        .text(d => d.data.name);
+
+      // hover
+      nodes.on('mouseenter', function(e, d) {
+        d3.select(this).select('circle').attr('r', 8).attr('stroke-width', 3);
+        const path = d.ancestors().reverse().map(n => n.data.name).join(' → ');
+        tip.style('opacity', 1).html(`<b style="color:${palette[d.depth % palette.length]}">${d.data.name}</b><br/>路径: ${path}`);
+      })
+      .on('mousemove', e => tip.style('left', (e.clientX + 14) + 'px').style('top', (e.clientY - 40) + 'px'))
+      .on('mouseleave', function(e, d) {
+        d3.select(this).select('circle').attr('r', d.children ? 5 : 3.5).attr('stroke-width', 2);
+        tip.style('opacity', 0);
+      });
+    }
+
+    render('bio');
+    document.querySelectorAll('.controls button').forEach(btn => {
+      btn.onclick = () => {
+        document.querySelectorAll('.controls button').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active'); render(btn.dataset.set);
+      };
+    });
+    window.addEventListener('resize', () => {
+      const active = document.querySelector('.controls button.active');
+      if (active) render(active.dataset.set);
+    });
+  </script>
+</body>
+</html>

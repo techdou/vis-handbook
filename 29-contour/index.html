@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>29 · 密度等值线 Density Contour</title>
+  <script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,wght@0,400;0,500;1,400&family=JetBrains+Mono&family=Noto+Serif+SC:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --paper: #faf9f6; --ink: #1a1a1a; --ink-2: #3d3d3d; --ink-3: #6b6b6b;
+      --rule: #d8d4c8; --accent: #2c5282;
+      --serif: "Source Serif 4", "Noto Serif SC", Georgia, serif;
+      --sans: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+    }
+    body { background: var(--paper); color: var(--ink); font-family: var(--serif); padding: 24px 32px; min-height: 100vh; }
+    h1 { font-family: var(--serif); font-size: 26px; font-weight: 500; }
+    h1 em { font-style: italic; color: var(--accent); font-weight: 400; }
+    .sub { font-family: var(--sans); color: var(--ink-3); font-size: 13px; margin: 6px 0 18px; line-height: 1.5; }
+    svg { display: block; width: 100%; border: 1px solid var(--rule); border-radius: 2px; background: var(--paper); }
+    .controls { display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; align-items: center; }
+    .controls button { font-family: var(--sans); background: var(--paper); border: 1px solid var(--rule); color: var(--ink-2); padding: 6px 14px; border-radius: 2px; cursor: pointer; font-size: 12px; transition: all .15s; }
+    .controls button:hover { color: var(--accent); border-color: var(--accent); }
+    .controls button.active { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+    .controls label { color: var(--ink-3); font-family: var(--sans); font-size: 12px; }
+    .hint { font-family: var(--sans); font-size: 12px; color: var(--ink-3); margin-top: 10px; line-height: 1.6; }
+    @media (max-width: 768px) {
+      body { padding: 16px 14px; } h1 { font-size: 22px; } .sub { font-size: 12px; margin-bottom: 12px; }
+      .controls { gap: 4px; } .controls button { padding: 5px 10px; font-size: 11px; }
+      svg { height: calc(100vh - 180px) !important; min-height: 380px !important; }
+      .hint { font-size: 11px; }
+    }
+    @media (max-width: 420px) { body { padding: 12px 10px; } h1 { font-size: 20px; } svg { height: calc(100vh - 160px) !important; min-height: 340px !important; } }
+  </style>
+</head>
+<body>
+  <h1>密度等值线 <em>Density Contour</em></h1>
+  <div class="sub">二维 KDE 密度场 · 像地形等高线 · 科学感十足</div>
+  <div class="controls">
+    <button class="active" data-set="cluster">🎯 双簇分布</button>
+    <button data-set="ring">⭕ 环形分布</button>
+    <button data-set="spiral">🌀 螺旋分布</button>
+    <label>带宽:</label>
+    <input type="range" id="bw" min="5" max="40" value="20" />
+    <button id="regen">🎲 重新生成</button>
+  </div>
+  <svg id="chart"></svg>
+  <div class="hint">💡 暖色=密度高,冷色=密度低。带宽越大等值线越平滑。</div>
+
+  <script>
+    const svg = d3.select('#chart');
+
+    function randn() {
+      const u1 = Math.max(1e-12, Math.random()), u2 = Math.random();
+      return Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
+    }
+
+    function gen(type, n) {
+      const pts = [];
+      if (type === 'cluster') {
+        for (let i = 0; i < n; i++) {
+          const c = Math.random() < 0.5 ? [3, 3] : [7, 7];
+          pts.push([c[0] + randn() * 1.2, c[1] + randn() * 1.2]);
+        }
+      } else if (type === 'ring') {
+        for (let i = 0; i < n; i++) {
+          const a = Math.random() * 2 * Math.PI;
+          const r = 3 + randn() * 0.5;
+          pts.push([5 + r * Math.cos(a), 5 + r * Math.sin(a)]);
+        }
+      } else { // spiral
+        for (let i = 0; i < n; i++) {
+          const t = i / n * 4 * Math.PI;
+          const r = t * 0.4;
+          pts.push([5 + r * Math.cos(t) + randn() * 0.4, 5 + r * Math.sin(t) + randn() * 0.4]);
+        }
+      }
+      return pts;
+    }
+
+    let curType = 'cluster', curBw = 20;
+
+    function render() {
+      const pts = gen(curType, 600);
+      svg.selectAll('*').remove();
+      const W = svg.node().clientWidth || 800;
+      const H = Math.max(480, Math.min(620, W * 0.55));
+      svg.attr('viewBox', `0 0 ${W} ${H}`).attr('width', '100%').attr('height', H);
+      const m = { top: 20, right: 30, bottom: 40, left: 50 };
+
+      const x = d3.scaleLinear().domain([0, 10]).range([m.left, W - m.right]);
+      const y = d3.scaleLinear().domain([0, 10]).range([H - m.bottom, m.top]);
+
+      // 密度等值线
+      const density = d3.contourDensity()
+        .x(d => x(d[0])).y(d => y(d[1]))
+        .size([W, H])
+        .bandwidth(curBw)
+        .thresholds(20)
+        (pts);
+
+      const maxDensity = d3.max(density, d => d.value);
+
+      // 颜色:学术色板渐变
+      const color = d3.scaleSequential(d3.interpolateRgbBasis(['#f3f1ea', '#a8c5e8', '#2c5282', '#9c4221', '#975a16']))
+                     .domain([0, maxDensity]);
+
+      const g = svg.append('g');
+
+      // 等值面填充
+      g.append('g').selectAll('path')
+        .data(density)
+        .join('path')
+        .attr('d', d3.geoPath())
+        .attr('fill', d => color(d.value))
+        .attr('stroke', '#fff')
+        .attr('stroke-width', 0.5)
+        .attr('stroke-opacity', 0.6);
+
+      // 叠加原始散点(半透明)
+      g.append('g').selectAll('circle')
+        .data(pts)
+        .join('circle')
+        .attr('cx', d => x(d[0])).attr('cy', d => y(d[1]))
+        .attr('r', 2).attr('fill', '#1a1a1a').attr('fill-opacity', 0.35);
+
+      // 坐标轴
+      g.append('g').attr('transform', `translate(0,${H - m.bottom})`)
+        .call(d3.axisBottom(x)).call(ax => ax.select('.domain').remove())
+        .selectAll('text').style('fill', '#6b6b6b').style('font-family', 'sans-serif').style('font-size', '11px');
+      g.append('g').attr('transform', `translate(${m.left},0)`)
+        .call(d3.axisLeft(y)).call(ax => ax.select('.domain').remove())
+        .selectAll('text').style('fill', '#6b6b6b').style('font-family', 'sans-serif').style('font-size', '11px');
+      g.selectAll('.tick line').attr('stroke', '#e8e4d8');
+    }
+
+    render();
+    document.querySelectorAll('.controls button[data-set]').forEach(btn => {
+      btn.onclick = () => {
+        document.querySelectorAll('.controls button[data-set]').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active'); curType = btn.dataset.set; render();
+      };
+    });
+    document.getElementById('bw').oninput = function() { curBw = +this.value; render(); };
+    document.getElementById('regen').onclick = render;
+    window.addEventListener('resize', render);
+  </script>
+</body>
+</html>

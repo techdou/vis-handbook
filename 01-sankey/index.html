@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>01 · 桑基图 Sankey Diagram</title>
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,wght@0,400;0,500;1,400&family=JetBrains+Mono&family=Noto+Serif+SC:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --paper: #faf9f6; --ink: #1a1a1a; --ink-2: #3d3d3d; --ink-3: #6b6b6b;
+      --rule: #d8d4c8; --accent: #2c5282; --rust: #9c4221; --ochre: #975a16;
+      --serif: "Source Serif 4", "Noto Serif SC", Georgia, serif;
+      --sans: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+      --mono: "JetBrains Mono", Consolas, monospace;
+    }
+    body {
+      background: var(--paper); color: var(--ink);
+      font-family: var(--serif); padding: 24px 32px; min-height: 100vh;
+    }
+    h1 { font-family: var(--serif); font-size: 26px; font-weight: 500; letter-spacing: -0.01em; }
+    h1 em { font-style: italic; color: var(--accent); font-weight: 400; }
+    .sub { font-family: var(--sans); color: var(--ink-3); font-size: 13px; margin: 6px 0 18px; }
+    #chart { width: 100%; height: calc(100vh - 130px); min-height: 480px; }
+    .controls { display: flex; gap: 6px; margin-bottom: 10px; flex-wrap: wrap; }
+    .controls button {
+      font-family: var(--sans);
+      background: var(--paper); border: 1px solid var(--rule); color: var(--ink-2);
+      padding: 6px 14px; border-radius: 2px; cursor: pointer; font-size: 12px;
+      transition: all .15s;
+    }
+    .controls button:hover { color: var(--accent); border-color: var(--accent); }
+    .controls button.active { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+  
+    /* ===== 移动端响应式 ===== */
+    @media (max-width: 768px) {
+      body { padding: 16px 14px; }
+      h1 { font-size: 22px; }
+      .sub { font-size: 12px; margin-bottom: 12px; }
+      .controls { gap: 4px; }
+      .controls button, .controls select { padding: 5px 10px; font-size: 11px; }
+      .controls label { font-size: 11px; }
+      #chart, svg, #cloud, #cy {
+        height: 60vh !important;
+        min-height: 360px !important;
+      }
+      .hint, .info, .mapping, .legend { font-size: 11px; }
+      .legend { gap: 10px; }
+      .node-label, .face-label, .ridge-label { font-size: 10px; }
+    }
+    @media (max-width: 420px) {
+      body { padding: 12px 10px; }
+      h1 { font-size: 20px; }
+      #chart, svg, #cloud, #cy { height: 55vh !important; min-height: 320px !important; }
+    }
+  </style>
+</head>
+<body>
+  <h1>桑基图 <em>Sankey Diagram</em></h1>
+  <div class="sub">流向 · 转化 · 节点宽度 = 流量 · ECharts 实现</div>
+  <div class="controls">
+    <button class="active" data-set="energy">能源转化</button>
+    <button data-set="user">用户路径</button>
+    <button data-set="budget">预算分配</button>
+  </div>
+  <div id="chart"></div>
+
+  <script>
+    const chart = echarts.init(document.getElementById('chart'));
+
+    const DATASETS = {
+      energy: {
+        title: '电力能源转化流向 (单位:TWh)',
+        nodes: [
+          { name: '煤炭' }, { name: '天然气' }, { name: '核能' }, { name: '水电' }, { name: '风电光伏' },
+          { name: '火力发电' }, { name: '清洁发电' },
+          { name: '工业' }, { name: '居民' }, { name: '交通' }, { name: '商业' }, { name: '线损' }
+        ],
+        links: [
+          { source: '煤炭', target: '火力发电', value: 2200 },
+          { source: '天然气', target: '火力发电', value: 600 },
+          { source: '核能', target: '清洁发电', value: 400 },
+          { source: '水电', target: '清洁发电', value: 1300 },
+          { source: '风电光伏', target: '清洁发电', value: 800 },
+          { source: '火力发电', target: '工业', value: 1400 },
+          { source: '火力发电', target: '居民', value: 700 },
+          { source: '火力发电', target: '商业', value: 400 },
+          { source: '火力发电', target: '线损', value: 300 },
+          { source: '清洁发电', target: '工业', value: 900 },
+          { source: '清洁发电', target: '居民', value: 800 },
+          { source: '清洁发电', target: '交通', value: 500 },
+          { source: '清洁发电', target: '商业', value: 300 },
+        ]
+      },
+      user: {
+        title: '电商用户行为路径 (单位:万人)',
+        nodes: [
+          { name: '首页' }, { name: '搜索' }, { name: '推荐' },
+          { name: '商品列表' }, { name: '商品详情' },
+          { name: '加入购物车' }, { name: '直接下单' },
+          { name: '完成支付' }, { name: '流失' }
+        ],
+        links: [
+          { source: '首页', target: '搜索', value: 50 },
+          { source: '首页', target: '推荐', value: 30 },
+          { source: '首页', target: '商品列表', value: 20 },
+          { source: '搜索', target: '商品列表', value: 45 },
+          { source: '推荐', target: '商品详情', value: 28 },
+          { source: '商品列表', target: '商品详情', value: 55 },
+          { source: '商品详情', target: '加入购物车', value: 40 },
+          { source: '商品详情', target: '直接下单', value: 15 },
+          { source: '商品详情', target: '流失', value: 28 },
+          { source: '加入购物车', target: '完成支付', value: 25 },
+          { source: '加入购物车', target: '流失', value: 15 },
+          { source: '直接下单', target: '完成支付', value: 12 },
+          { source: '直接下单', target: '流失', value: 3 },
+        ]
+      },
+      budget: {
+        title: '国家财政预算分配 (单位:亿元)',
+        nodes: [
+          { name: '税收收入' }, { name: '非税收入' },
+          { name: '教育' }, { name: '科技' }, { name: '国防' },
+          { name: '医疗' }, { name: '社保' }, { name: '基建' }, { name: '其他' }
+        ],
+        links: [
+          { source: '税收收入', target: '教育', value: 4200 },
+          { source: '税收收入', target: '科技', value: 1800 },
+          { source: '税收收入', target: '国防', value: 5500 },
+          { source: '税收收入', target: '医疗', value: 3100 },
+          { source: '税收收入', target: '社保', value: 6800 },
+          { source: '税收收入', target: '基建', value: 4500 },
+          { source: '非税收入', target: '教育', value: 300 },
+          { source: '非税收入', target: '医疗', value: 400 },
+          { source: '非税收入', target: '其他', value: 1200 },
+        ]
+      }
+    };
+
+    function render(key) {
+      const d = DATASETS[key];
+      chart.setOption({
+        backgroundColor: 'transparent',
+        title: { text: d.title, left: 'center', textStyle: { fontFamily: 'Source Serif 4, serif', fontSize: 14, color: '#6b6b6b', fontWeight: 400 } },
+        tooltip: { trigger: 'item', textStyle: { fontFamily: 'sans-serif', fontSize: 12 } },
+        series: [{
+          type: 'sankey',
+          data: d.nodes,
+          links: d.links,
+          left: 60, right: 120, top: 70, bottom: 40,
+          emphasis: { focus: 'adjacency' },
+          nodeAlign: 'justify',
+          lineStyle: { color: 'gradient', curveness: 0.5, opacity: 0.45 },
+          itemStyle: { borderWidth: 0 },
+          label: { color: '#1a1a1a', fontFamily: 'Noto Serif SC, serif', fontSize: 12 },
+          levels: [
+            { depth: 0, itemStyle: { color: '#2c5282' } },
+            { depth: 1, itemStyle: { color: '#4a7ba8' } },
+            { depth: 2, itemStyle: { color: '#9c4221' } },
+            { depth: 3, itemStyle: { color: '#975a16' } },
+          ],
+          animationDuration: 1200
+        }]
+      }, true);
+    }
+
+    render('energy');
+    document.querySelectorAll('.controls button').forEach(btn => {
+      btn.onclick = () => {
+        document.querySelectorAll('.controls button').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active'); render(btn.dataset.set);
+      };
+    });
+    window.addEventListener('resize', () => chart.resize());
+  </script>
+</body>
+</html>

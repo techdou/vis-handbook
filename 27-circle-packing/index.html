@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>27 · 圆填充图 Circle Packing</title>
+  <script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,wght@0,400;0,500;1,400&family=JetBrains+Mono&family=Noto+Serif+SC:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --paper: #faf9f6; --ink: #1a1a1a; --ink-2: #3d3d3d; --ink-3: #6b6b6b;
+      --rule: #d8d4c8; --accent: #2c5282;
+      --serif: "Source Serif 4", "Noto Serif SC", Georgia, serif;
+      --sans: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+    }
+    body { background: var(--paper); color: var(--ink); font-family: var(--serif); padding: 24px 32px; min-height: 100vh; }
+    h1 { font-family: var(--serif); font-size: 26px; font-weight: 500; }
+    h1 em { font-style: italic; color: var(--accent); font-weight: 400; }
+    .sub { font-family: var(--sans); color: var(--ink-3); font-size: 13px; margin: 6px 0 18px; line-height: 1.5; }
+    svg { display: block; width: 100%; border: 1px solid var(--rule); border-radius: 2px; background: var(--paper); cursor: grab; }
+    svg:active { cursor: grabbing; }
+    .controls { display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; }
+    .controls button { font-family: var(--sans); background: var(--paper); border: 1px solid var(--rule); color: var(--ink-2); padding: 6px 14px; border-radius: 2px; cursor: pointer; font-size: 12px; transition: all .15s; }
+    .controls button:hover { color: var(--accent); border-color: var(--accent); }
+    .controls button.active { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+    .hint { font-family: var(--sans); font-size: 12px; color: var(--ink-3); margin-top: 10px; line-height: 1.6; }
+    .node-label { font-family: var(--sans); pointer-events: none; text-anchor: middle; }
+    .tip { position: fixed; pointer-events: none; opacity: 0; background: #fff; border: 1px solid var(--ink); padding: 8px 12px; border-radius: 2px; font-family: var(--sans); font-size: 12px; transition: opacity .12s; box-shadow: 0 4px 16px rgba(0,0,0,0.08); }
+    @media (max-width: 768px) {
+      body { padding: 16px 14px; } h1 { font-size: 22px; } .sub { font-size: 12px; margin-bottom: 12px; }
+      .controls { gap: 4px; } .controls button { padding: 5px 10px; font-size: 11px; }
+      svg { height: calc(100vh - 180px) !important; min-height: 380px !important; }
+      .hint { font-size: 11px; }
+    }
+    @media (max-width: 420px) { body { padding: 12px 10px; } h1 { font-size: 20px; } svg { height: calc(100vh - 160px) !important; min-height: 340px !important; } }
+  </style>
+</head>
+<body>
+  <h1>圆填充图 <em>Circle Packing</em></h1>
+  <div class="sub">嵌套圆层级 · 圆面积=数值 · 点击圆下钻放大</div>
+  <div class="controls">
+    <button class="active" data-set="org">🏢 组织架构</button>
+    <button data-set="market">📈 市场结构</button>
+    <button data-set="bio">🧬 生物分类</button>
+    <button id="reset">🎯 重置</button>
+  </div>
+  <svg id="chart"></svg>
+  <div class="hint">💡 点击圆进入下一层,空白处点击返回上层。圆大小代表数值。</div>
+  <div class="tip" id="tip"></div>
+
+  <script>
+    const svg = d3.select('#chart');
+    const palette = ['#2c5282', '#9c4221', '#975a16', '#4a6741', '#6b5d8a', '#2d7a7a', '#8a5a2b', '#3d5a80'];
+
+    const DATASETS = {
+      org: { name: '公司', children: [
+        { name: '技术部', children: [
+          { name: '前端', value: 25 }, { name: '后端', value: 35 }, { name: '算法', value: 15 }, { name: '运维', value: 10 }
+        ]},
+        { name: '产品部', children: [
+          { name: '产品经理', value: 18 }, { name: '设计', value: 12 }, { name: '用研', value: 6 }
+        ]},
+        { name: '市场部', children: [
+          { name: '品牌', value: 10 }, { name: '投放', value: 14 }, { name: '内容', value: 8 }
+        ]},
+        { name: '运营部', children: [
+          { name: '用户运营', value: 16 }, { name: '数据', value: 8 }
+        ]},
+      ]},
+      market: { name: '科技市场', children: [
+        { name: '云计算', children: [
+          { name: 'AWS', value: 40 }, { name: 'Azure', value: 25 }, { name: 'GCP', value: 15 }, { name: '阿里云', value: 18 }
+        ]},
+        { name: '手机', children: [
+          { name: '苹果', value: 28 }, { name: '三星', value: 22 }, { name: '小米', value: 16 }, { name: '华为', value: 14 }
+        ]},
+        { name: '社交', children: [
+          { name: 'Meta', value: 35 }, { name: '腾讯', value: 30 }, { name: '字节', value: 28 }
+        ]},
+      ]},
+      bio: { name: '脊椎动物', children: [
+        { name: '哺乳纲', children: [
+          { name: '灵长目', value: 300 }, { name: '食肉目', value: 280 }, { name: '啮齿目', value: 2200 }, { name: '鲸目', value: 90 }
+        ]},
+        { name: '鸟纲', children: [
+          { name: '雀形目', value: 6000 }, { name: '雁形目', value: 180 }, { name: '鹰形目', value: 250 }
+        ]},
+        { name: '鱼纲', children: [
+          { name: '鲈形目', value: 10000 }, { name: '鲤形目', value: 3000 }
+        ]},
+      ]}
+    };
+
+    const tip = d3.select('#tip');
+    let curSet = 'org', focus, view, node, label;
+
+    function render() {
+      svg.selectAll('*').remove();
+      const W = svg.node().clientWidth || 800;
+      const H = Math.max(480, Math.min(620, W * 0.6));
+      svg.attr('viewBox', `0 0 ${W} ${H}`).attr('width', '100%').attr('height', H);
+
+      const root = d3.hierarchy(DATASETS[curSet])
+        .sum(d => d.value || 0)
+        .sort((a, b) => b.value - a.value);
+
+      const pack = d3.pack().size([W, H]).padding(3);
+      pack(root);
+
+      focus = root;
+      view = [root.x, root.y, root.r * 2];
+
+      const g = svg.append('g');
+
+      node = g.selectAll('circle')
+        .data(root.descendants())
+        .join('circle')
+        .attr('fill', d => d.children ? 'rgba(44,82,130,0.06)' : palette[d.depth % palette.length] + '33')
+        .attr('stroke', d => d.children ? '#d8d4c8' : palette[d.depth % palette.length])
+        .attr('stroke-width', d => d.children ? 1 : 1.5)
+        .style('cursor', d => d.children ? 'pointer' : 'default')
+        .on('click', (e, d) => { if (d.children) { focus = d; zoomTo(d); } })
+        .on('mouseenter', function(e, d) {
+          d3.select(this).attr('stroke-width', 3);
+          tip.style('opacity', 1).html(`<b style="color:${palette[d.depth % palette.length]}">${d.data.name}</b><br/>值: ${d.value}<br/>层级: ${d.depth}`);
+        })
+        .on('mousemove', e => tip.style('left', (e.clientX + 14) + 'px').style('top', (e.clientY - 40) + 'px'))
+        .on('mouseleave', function(e, d) {
+          d3.select(this).attr('stroke-width', d.children ? 1 : 1.5);
+          tip.style('opacity', 0);
+        });
+
+      label = g.selectAll('text')
+        .data(root.descendants())
+        .join('text')
+        .attr('class', 'node-label')
+        .attr('fill', '#1a1a1a')
+        .style('font-size', d => Math.max(9, Math.min(16, d.r / 4)) + 'px')
+        .style('font-weight', d => d.depth === 0 ? 700 : 500)
+        .style('fill-opacity', d => d.parent === root || d === root ? 1 : 0)
+        .text(d => d.data.name);
+
+      svg.on('click', (e) => {
+        if (e.target.tagName === 'svg') {
+          if (focus !== root) { focus = root; zoomTo(root); }
+        }
+      });
+
+      zoomTo([root.x, root.y, root.r * 2]);
+    }
+
+    function zoomTo(d) {
+      const W = svg.node().clientWidth || 800;
+      const H = svg.node().clientHeight || 500;
+      const k = Math.min(W, H) / d[2];
+      view = d;
+      node.attr('transform', dd => `translate(${(dd.x - d[0]) * k + W/2},${(dd.y - d[1]) * k + H/2})`);
+      node.attr('r', dd => dd.r * k);
+      label.attr('transform', dd => `translate(${(dd.x - d[0]) * k + W/2},${(dd.y - d[1]) * k + H/2})`);
+      label.style('fill-opacity', dd => {
+        const isFocusChild = dd.parent === d[3] || dd === focus;
+        return dd === focus || (dd.parent && dd.parent === focus) ? 1 : 0;
+      });
+    }
+
+    render();
+    document.querySelectorAll('.controls button[data-set]').forEach(btn => {
+      btn.onclick = () => {
+        document.querySelectorAll('.controls button[data-set]').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active'); curSet = btn.dataset.set; render();
+      };
+    });
+    document.getElementById('reset').onclick = render;
+    window.addEventListener('resize', () => render());
+  </script>
+</body>
+</html>

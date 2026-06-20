@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>32 · K 线图 Candlestick</title>
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,wght@0,400;0,500;1,400&family=JetBrains+Mono&family=Noto+Serif+SC:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --paper: #faf9f6; --ink: #1a1a1a; --ink-2: #3d3d3d; --ink-3: #6b6b6b;
+      --rule: #d8d4c8; --accent: #2c5282; --moss: #4a6741; --rust: #9c4221;
+      --serif: "Source Serif 4", "Noto Serif SC", Georgia, serif;
+      --sans: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+    }
+    body { background: var(--paper); color: var(--ink); font-family: var(--serif); padding: 24px 32px; min-height: 100vh; }
+    h1 { font-family: var(--serif); font-size: 26px; font-weight: 500; }
+    h1 em { font-style: italic; color: var(--accent); font-weight: 400; }
+    .sub { font-family: var(--sans); color: var(--ink-3); font-size: 13px; margin: 6px 0 18px; line-height: 1.5; }
+    #chart { width: 100%; height: calc(100vh - 160px); min-height: 540px; border: 1px solid var(--rule); border-radius: 2px; background: var(--paper); }
+    .controls { display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; align-items: center; }
+    .controls button { font-family: var(--sans); background: var(--paper); border: 1px solid var(--rule); color: var(--ink-2); padding: 6px 14px; border-radius: 2px; cursor: pointer; font-size: 12px; transition: all .15s; }
+    .controls button:hover { color: var(--accent); border-color: var(--accent); }
+    .controls button.active { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+    .legend { display: flex; gap: 18px; flex-wrap: wrap; margin-top: 12px; font-family: var(--sans); font-size: 11px; color: var(--ink-3); }
+    .legend span { display: inline-flex; align-items: center; gap: 6px; }
+    .legend i { width: 14px; height: 12px; display: inline-block; border: 1px solid; }
+    @media (max-width: 768px) {
+      body { padding: 16px 14px; } h1 { font-size: 22px; } .sub { font-size: 12px; margin-bottom: 12px; }
+      .controls { gap: 4px; } .controls button { padding: 5px 10px; font-size: 11px; }
+      #chart { height: calc(100vh - 180px) !important; min-height: 420px !important; }
+      .legend { font-size: 11px; gap: 10px; }
+    }
+    @media (max-width: 420px) { body { padding: 12px 10px; } h1 { font-size: 20px; } #chart { height: calc(100vh - 160px) !important; min-height: 380px !important; } }
+  </style>
+</head>
+<body>
+  <h1>K 线图 <em>Candlestick Chart</em></h1>
+  <div class="sub">金融 OHLC · 红涨绿跌 · MA 均线 + 成交量副图</div>
+  <div class="controls">
+    <button class="active" data-set="stock">📈 股票</button>
+    <button data-set="crypto">₿ 加密货币</button>
+    <button data-set="index">📊 指数</button>
+  </div>
+  <div id="chart"></div>
+  <div class="legend">
+    <span><i style="background:#9c4221;border-color:#9c4221"></i>阳线(收>开)</span>
+    <span><i style="background:#4a6741;border-color:#4a6741"></i>阴线(收<开)</span>
+    <span><i style="background:#2c5282;border-color:#2c5282"></i>MA 均线</span>
+  </div>
+
+  <script>
+    const chart = echarts.init(document.getElementById('chart'));
+
+    // 生成 OHLC 数据(随机游走 + 趋势)
+    function genOHLC(seed, days, startPrice, volatility, trend) {
+      let price = startPrice;
+      const data = [], dates = [];
+      const start = new Date(2024, 0, 1);
+      for (let i = 0; i < days; i++) {
+        const d = new Date(start); d.setDate(d.getDate() + i);
+        // 跳过周末
+        if (d.getDay() === 0 || d.getDay() === 6) continue;
+        dates.push(d.toISOString().slice(5, 10));
+        const change = (Math.random() - 0.5 + trend) * volatility;
+        const open = price;
+        price = Math.max(1, price * (1 + change));
+        const close = price;
+        const range = price * volatility * (0.5 + Math.random());
+        const high = Math.max(open, close) + Math.random() * range;
+        const low = Math.min(open, close) - Math.random() * range;
+        const volume = Math.round(500000 + Math.random() * 2000000 * (1 + Math.abs(change) * 10));
+        data.push({ value: [+open.toFixed(2), +close.toFixed(2), +low.toFixed(2), +high.toFixed(2)], volume });
+      }
+      return { dates, data };
+    }
+
+    // 计算 MA 均线
+    function calcMA(data, period) {
+      const result = [];
+      for (let i = 0; i < data.length; i++) {
+        if (i < period - 1) { result.push('-'); continue; }
+        let sum = 0;
+        for (let j = 0; j < period; j++) sum += data[i - j].value[1];
+        result.push(+(sum / period).toFixed(2));
+      }
+      return result;
+    }
+
+    const DATASETS = {
+      stock: { title: '股票走势 (示例数据)', ...genOHLC(1, 120, 50, 0.025, 0.005) },
+      crypto: { title: '加密货币走势 (示例数据)', ...genOHLC(2, 120, 30000, 0.04, 0.003) },
+      index: { title: '大盘指数 (示例数据)', ...genOHLC(3, 120, 3000, 0.015, 0.004) },
+    };
+
+    function render(key) {
+      const d = DATASETS[key];
+      const ma5 = calcMA(d.data, 5);
+      const ma20 = calcMA(d.data, 20);
+
+      chart.setOption({
+        backgroundColor: 'transparent',
+        title: { text: d.title, left: 'center', textStyle: { fontFamily: 'Source Serif 4, serif', fontSize: 14, color: '#6b6b6b', fontWeight: 400 } },
+        tooltip: { trigger: 'axis', axisPointer: { type: 'cross' } },
+        axisPointer: { link: [{ xAxisIndex: 'all' }] },
+        grid: [
+          { left: 60, right: 30, top: 60, height: '55%' },
+          { left: 60, right: 30, top: '74%', height: '18%' }
+        ],
+        xAxis: [
+          { type: 'category', data: d.dates, scale: true, boundaryGap: false, splitLine: { show: false }, axisLabel: { color: '#6b6b6b', fontFamily: 'sans-serif', fontSize: 10 }, axisLine: { lineStyle: { color: '#d8d4c8' } } },
+          { type: 'category', gridIndex: 1, data: d.dates, scale: true, boundaryGap: false, splitLine: { show: false }, axisLabel: { show: false } }
+        ],
+        yAxis: [
+          { scale: true, splitLine: { lineStyle: { color: '#e8e4d8' } }, axisLabel: { color: '#6b6b6b', fontFamily: 'sans-serif' }, axisLine: { lineStyle: { color: '#d8d4c8' } } },
+          { gridIndex: 1, splitNumber: 2, axisLabel: { color: '#6b6b6b', fontFamily: 'sans-serif' }, splitLine: { lineStyle: { color: '#e8e4d8' } } }
+        ],
+        dataZoom: [
+          { type: 'inside', xAxisIndex: [0, 1], start: 60, end: 100 },
+          { show: true, type: 'slider', xAxisIndex: [0, 1], top: '94%', start: 60, end: 100, height: 16, borderColor: '#d8d4c8', fillerColor: 'rgba(44,82,130,0.15)', textStyle: { color: '#6b6b6b' } }
+        ],
+        series: [
+          {
+            name: 'K 线', type: 'candlestick', data: d.data,
+            itemStyle: { color: '#9c4221', color0: '#4a6741', borderColor: '#9c4221', borderColor0: '#4a6741' }
+          },
+          { name: 'MA5', type: 'line', data: ma5, smooth: true, showSymbol: false, lineStyle: { color: '#2c5282', width: 1.5 }, z: 5 },
+          { name: 'MA20', type: 'line', data: ma20, smooth: true, showSymbol: false, lineStyle: { color: '#975a16', width: 1.5 }, z: 5 },
+          {
+            name: '成交量', type: 'bar', xAxisIndex: 1, yAxisIndex: 1,
+            data: d.data.map(it => ({
+              value: it.volume,
+              itemStyle: { color: it.value[1] >= it.value[0] ? '#9c4221' : '#4a6741', opacity: 0.7 }
+            }))
+          }
+        ]
+      }, true);
+    }
+
+    render('stock');
+    document.querySelectorAll('.controls button').forEach(btn => {
+      btn.onclick = () => {
+        document.querySelectorAll('.controls button').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active'); render(btn.dataset.set);
+      };
+    });
+    window.addEventListener('resize', () => chart.resize());
+  </script>
+</body>
+</html>

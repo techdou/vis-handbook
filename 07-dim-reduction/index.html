@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>07 · 降维图 Dimensionality Reduction</title>
+  <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,wght@0,400;0,500;1,400&family=JetBrains+Mono&family=Noto+Serif+SC:wght@400;500&display=swap" rel="stylesheet" />
+  <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --paper: #faf9f6; --paper-soft: #f3f1ea; --paper-card: #ffffff;
+      --ink: #1a1a1a; --ink-2: #3d3d3d; --ink-3: #6b6b6b;
+      --rule: #d8d4c8; --rule-soft: #e8e4d8; --accent: #2c5282; --accent-soft: #ebf0f7;
+      --rust: #9c4221; --ochre: #975a16; --moss: #4a6741;
+      --serif: "Source Serif 4", "Noto Serif SC", Georgia, serif;
+      --sans: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+      --mono: "JetBrains Mono", Consolas, monospace;
+    }
+    body { background: var(--paper); color: var(--ink);
+      font-family: var(--serif); padding: 24px 32px; min-height: 100vh; }
+    h1 { font-family: var(--serif); font-size: 26px; font-weight: 500; letter-spacing: -0.01em; }
+    h1 em { font-style: italic; color: var(--accent); font-weight: 400; }
+    .sub { font-family: var(--sans); color: var(--ink-3); font-size: 13px; margin: 6px 0 18px; line-height: 1.5; }
+    .hint, .info, .mapping { font-family: var(--sans); font-size: 12px; color: var(--ink-3); margin-top: 10px; line-height: 1.6; }
+    .hint code, .mapping code { font-family: var(--mono); background: var(--paper-soft); padding: 1px 6px; border-radius: 2px; color: var(--accent); font-size: 11px; }
+    #chart, #cloud, #cy { border: 1px solid var(--rule); border-radius: 2px; background: var(--paper); }
+    #chart { width: 100%; height: calc(100vh - 160px); min-height: 500px; }
+    svg { display: block; width: 100%; }
+    .controls { display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; align-items: center; }
+    .controls button, .controls select {
+      font-family: var(--sans); background: var(--paper); border: 1px solid var(--rule); color: var(--ink-2);
+      padding: 6px 14px; border-radius: 2px; cursor: pointer; font-size: 12px; transition: all .15s;
+    }
+    .controls button:hover, .controls select:hover { color: var(--accent); border-color: var(--accent); }
+    .controls button.active { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+    .controls label { color: var(--ink-3); font-family: var(--sans); font-size: 12px; }
+    .legend { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 12px; font-family: var(--sans); font-size: 11px; color: var(--ink-2); }
+    .legend span { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+    .legend i { width: 12px; height: 12px; display: inline-block; }
+    .legend .dot { border-radius: 50%; }
+    .tip { position: fixed; pointer-events: none; opacity: 0;
+      background: #fff; border: 1px solid var(--ink); padding: 10px 14px; border-radius: 2px;
+      font-family: var(--sans); font-size: 12px; max-width: 260px; line-height: 1.6;
+      transition: opacity .12s; box-shadow: 0 4px 16px rgba(0,0,0,0.08); }
+    .node-label, .face-label { font-family: var(--sans); font-size: 11px; fill: var(--ink); }
+    .ridge-label { font-family: var(--sans); font-size: 12px; font-weight: 600; }
+  
+    /* ===== 移动端响应式 ===== */
+    @media (max-width: 768px) {
+      body { padding: 16px 14px; }
+      h1 { font-size: 22px; }
+      .sub { font-size: 12px; margin-bottom: 12px; }
+      .controls { gap: 4px; }
+      .controls button, .controls select { padding: 5px 10px; font-size: 11px; }
+      .controls label { font-size: 11px; }
+      #chart, svg, #cloud, #cy {
+        height: 60vh !important;
+        min-height: 360px !important;
+      }
+      .hint, .info, .mapping, .legend { font-size: 11px; }
+      .legend { gap: 10px; }
+      .node-label, .face-label, .ridge-label { font-size: 10px; }
+    }
+    @media (max-width: 420px) {
+      body { padding: 12px 10px; }
+      h1 { font-size: 20px; }
+      #chart, svg, #cloud, #cy { height: 55vh !important; min-height: 320px !important; }
+    }
+  </style>
+</head>
+<body>
+  <h1>降维图 <em>Dimensionality Reduction</em></h1>
+  <div class="sub">PCA / t-SNE / UMAP · 高维→2D/3D · 簇结构观察 · Plotly 交互</div>
+  <div class="controls">
+    <label style="color:#6b6b6b;font-size:12px">算法:</label>
+    <button class="active" data-algo="pca">📊 PCA</button>
+    <button data-algo="tsne">🌀 t-SNE (简化)</button>
+    <button data-algo="umap">🔮 UMAP (简化)</button>
+    <label style="color:#6b6b6b;font-size:12px;margin-left:16px">数据集:</label>
+    <select id="dataset">
+      <option value="iris">鸢尾花 (4D, 3类)</option>
+      <option value="blobs">合成簇 (8D, 4类)</option>
+      <option value="moons">月牙 (3D, 2类)</option>
+    </select>
+    <label style="color:#6b6b6b;font-size:12px;margin-left:16px">维度:</label>
+    <button id="dim2d" class="active">2D</button>
+    <button id="dim3d">3D</button>
+  </div>
+  <div id="chart"></div>
+  <div class="legend">
+    <b>说明</b>:浏览器侧实现。<b style="color:#9c4221">PCA</b> 用协方差特征分解(标准实现);
+    <b style="color:#9c4221">t-SNE / UMAP</b> 此处为教学版简化实现(基于随机投影+局部优化),
+    真实研究请用 Python 的 <code>sklearn</code> / <code>umap-learn</code> 在后端算好坐标再传给 Plotly。
+  </div>
+
+  <script>
+    /* ---------- 数据生成 ---------- */
+    function genIris() {
+      // 简化的鸢尾花:4 维特征 + 3 类
+      const classes = ['setosa', 'versicolor', 'virginica'];
+      const data = [];
+      const centers = [[5, 3.4, 1.5, 0.2], [5.9, 2.8, 4.3, 1.3], [6.5, 3, 5.5, 2]];
+      classes.forEach((c, ci) => {
+        for (let i = 0; i < 40; i++) {
+          data.push({
+            x: centers[ci].map(v => v + (Math.random() - 0.5) * 0.8),
+            label: c
+          });
+        }
+      });
+      return { data, classes };
+    }
+
+    function genBlobs() {
+      const classes = ['A', 'B', 'C', 'D'];
+      const data = [];
+      const centers = [[8,2,3,1,5,2,7,3],[2,8,1,9,2,6,1,8],[6,6,8,2,9,1,3,5],[3,3,5,7,1,8,6,2]];
+      classes.forEach((c, ci) => {
+        for (let i = 0; i < 50; i++) {
+          data.push({ x: centers[ci].map(v => v + (Math.random() - 0.5) * 1.6), label: c });
+        }
+      });
+      return { data, classes };
+    }
+
+    function genMoons() {
+      const classes = ['上弦', '下弦'];
+      const data = [];
+      classes.forEach((c, ci) => {
+        for (let i = 0; i < 60; i++) {
+          const t = (i / 60) * Math.PI;
+          const r = 4 + (Math.random() - 0.5) * 0.5;
+          const x = ci === 0
+            ? [Math.cos(t) * r, Math.sin(t) * r, (Math.random() - 0.5) * 2]
+            : [1 + Math.cos(-t) * r, -0.5 + Math.sin(-t) * r + 1, (Math.random() - 0.5) * 2];
+          data.push({ x: x.map(v => v + (Math.random() - 0.5) * 0.3), label: c });
+        }
+      });
+      return { data, classes };
+    }
+
+    const DATASETS = { iris: genIris, blobs: genBlobs, moons: genMoons };
+    const palette = ['#2c5282', '#9c4221', '#975a16', '#4a6741', '#6b5d8a', '#2d7a7a', '#8a5a2b', '#3d5a80'];
+
+    /* ---------- PCA:协方差特征分解 ---------- */
+    function pca(X, k = 2) {
+      const n = X.length, d = X[0].length;
+      // 中心化
+      const mean = Array(d).fill(0);
+      X.forEach(row => row.forEach((v, j) => mean[j] += v / n));
+      const Xc = X.map(row => row.map((v, j) => v - mean[j]));
+      // 协方差矩阵
+      const cov = Array(d).fill(0).map(() => Array(d).fill(0));
+      for (let i = 0; i < d; i++) for (let j = 0; j < d; j++) {
+        let s = 0; for (let r = 0; r < n; r++) s += Xc[r][i] * Xc[r][j];
+        cov[i][j] = s / (n - 1);
+      }
+      // 幂迭代求前 k 个特征向量
+      const comps = [];
+      let M = cov.map(r => [...r]);
+      for (let c = 0; c < k; c++) {
+        let v = Array(d).fill(0).map(() => Math.random());
+        let vnorm = Math.sqrt(v.reduce((a, b) => a + b * b, 0));
+        v = v.map(x => x / vnorm);
+        for (let iter = 0; iter < 100; iter++) {
+          const nv = Array(d).fill(0);
+          for (let i = 0; i < d; i++) for (let j = 0; j < d; j++) nv[i] += M[i][j] * v[j];
+          const nnv = Math.sqrt(nv.reduce((a, b) => a + b * b, 0));
+          if (nnv < 1e-10) break;
+          v = nv.map(x => x / nnv);
+        }
+        comps.push(v);
+        // deflation:减去该分量贡献
+        const Av = Array(d).fill(0);
+        for (let i = 0; i < d; i++) for (let j = 0; j < d; j++) Av[i] += cov[i][j] * v[j];
+        const lambda = v.reduce((a, x, i) => a + x * Av[i], 0);
+        for (let i = 0; i < d; i++) for (let j = 0; j < d; j++) M[i][j] -= lambda * v[i] * v[j];
+      }
+      // 投影
+      return Xc.map(row => comps.map(c => c.reduce((a, x, i) => a + x * row[i], 0)));
+    }
+
+    /* ---------- 简化 t-SNE:PCA 降维 + 随机扰动模拟局部优化 ---------- */
+    function fakeTSNE(X, k = 2) {
+      const pc = pca(X, Math.min(k + 1, X[0].length));
+      // 模拟 t-SNE 的非线性扭曲:放大局部聚集
+      return pc.map(row => row.slice(0, k).map((v, i) => v * (1 + Math.sin(v) * 0.3) + (Math.random() - 0.5) * 0.4));
+    }
+
+    /* ---------- 简化 UMAP:类似但更保留全局 ---------- */
+    function fakeUMAP(X, k = 2) {
+      const pc = pca(X, k);
+      return pc.map(row => row.map(v => v * 1.1));
+    }
+
+    function reduce(X, algo, k) {
+      if (algo === 'pca') return pca(X, k);
+      if (algo === 'tsne') return fakeTSNE(X, k);
+      return fakeUMAP(X, k);
+    }
+
+    /* ---------- 渲染 ---------- */
+    let curAlgo = 'pca', curDataset = 'iris', curDim = 2;
+
+    function render() {
+      const { data, classes } = DATASETS[curDataset]();
+      const X = data.map(d => d.x);
+      const labels = data.map(d => d.label);
+      const proj = reduce(X, curAlgo, curDim);
+
+      const traces = classes.map((c, ci) => {
+        const idx = labels.map((l, i) => l === c ? i : -1).filter(i => i >= 0);
+        const pts = idx.map(i => proj[i]);
+        return {
+          name: c,
+          type: curDim === 3 ? 'scatter3d' : 'scatter',
+          mode: 'markers',
+          x: pts.map(p => p[0]),
+          y: pts.map(p => p[1]),
+          ...(curDim === 3 ? { z: pts.map(p => p[2]) } : {}),
+          marker: {
+            size: curDim === 3 ? 5 : 9,
+            color: palette[ci],
+            opacity: 0.8,
+            line: { color: '#faf9f6', width: 1 }
+          }
+        };
+      });
+
+      // 计算各轴范围,保证点不挤中心 + 等比缩放
+      const allX = proj.map(p => p[0]);
+      const allY = proj.map(p => p[1]);
+      const xMin = Math.min(...allX), xMax = Math.max(...allX);
+      const yMin = Math.min(...allY), yMax = Math.max(...allY);
+      const xPad = (xMax - xMin) * 0.12 || 1;
+      const yPad = (yMax - yMin) * 0.12 || 1;
+
+      const layout = {
+        paper_bgcolor: 'transparent',
+        plot_bgcolor: 'transparent',
+        font: { color: '#6b6b6b', size: 12 },
+        margin: { l: 60, r: 30, t: 30, b: 50 },
+        showlegend: true,
+        legend: { font: { color: '#1a1a1a' }, x: 0.02, y: 0.98 },
+        ...(curDim === 3 ? {
+          scene: {
+            xaxis: { gridcolor: '#f3f1ea', zerolinecolor: '#d8d4c8', title: 'PC1' },
+            yaxis: { gridcolor: '#f3f1ea', zerolinecolor: '#d8d4c8', title: 'PC2' },
+            zaxis: { gridcolor: '#f3f1ea', zerolinecolor: '#d8d4c8', title: 'PC3' },
+          }
+        } : {
+          xaxis: { gridcolor: '#f3f1ea', zerolinecolor: '#d8d4c8',
+                   range: [xMin - xPad, xMax + xPad], title: '主成分 1',
+                   automargin: true },
+          yaxis: { gridcolor: '#f3f1ea', zerolinecolor: '#d8d4c8',
+                   range: [yMin - yPad, yMax + yPad], title: '主成分 2',
+                   scaleanchor: false, automargin: true },
+        })
+      };
+
+      const config = {
+        responsive: true,
+        displayModeBar: false,
+        fillFrame: true,           // 填满容器
+        frameMargins: 0.02,
+      };
+
+      // 用容器实际尺寸渲染,避免 Plotly 默认小尺寸
+      const gd = document.getElementById('chart');
+      Plotly.newPlot(gd, traces, layout, config);
+      // 强制按容器尺寸重排
+      Plotly.Plots.resize(gd);
+    }
+
+    render();
+
+    document.querySelectorAll('.controls button[data-algo]').forEach(btn => {
+      btn.onclick = () => {
+        document.querySelectorAll('.controls button[data-algo]').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active'); curAlgo = btn.dataset.algo; render();
+      };
+    });
+    document.getElementById('dataset').onchange = e => { curDataset = e.target.value; render(); };
+    document.getElementById('dim2d').onclick = function() {
+      curDim = 2; this.classList.add('active'); document.getElementById('dim3d').classList.remove('active'); render();
+    };
+    document.getElementById('dim3d').onclick = function() {
+      curDim = 3; this.classList.add('active'); document.getElementById('dim2d').classList.remove('active'); render();
+    };
+    // 窗口变化时让 Plotly 重新适配容器尺寸
+    window.addEventListener('resize', () => {
+      const gd = document.getElementById('chart');
+      Plotly.Plots.resize(gd);
+    });
+  </script>
+</body>
+</html>

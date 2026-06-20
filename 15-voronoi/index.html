@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>15 · 泰森多边形 Voronoi</title>
+  <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,wght@0,400;0,500;1,400&family=JetBrains+Mono&family=Noto+Serif+SC:wght@400;500&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --paper: #faf9f6; --paper-soft: #f3f1ea; --paper-card: #ffffff;
+      --ink: #1a1a1a; --ink-2: #3d3d3d; --ink-3: #6b6b6b;
+      --rule: #d8d4c8; --rule-soft: #e8e4d8; --accent: #2c5282; --accent-soft: #ebf0f7;
+      --rust: #9c4221; --ochre: #975a16; --moss: #4a6741;
+      --serif: "Source Serif 4", "Noto Serif SC", Georgia, serif;
+      --sans: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+      --mono: "JetBrains Mono", Consolas, monospace;
+    }
+    body { background: var(--paper); color: var(--ink);
+      font-family: var(--serif); padding: 24px 32px; min-height: 100vh; }
+    h1 { font-family: var(--serif); font-size: 26px; font-weight: 500; letter-spacing: -0.01em; }
+    h1 em { font-style: italic; color: var(--accent); font-weight: 400; }
+    .sub { font-family: var(--sans); color: var(--ink-3); font-size: 13px; margin: 6px 0 18px; line-height: 1.5; }
+    .hint, .info, .mapping { font-family: var(--sans); font-size: 12px; color: var(--ink-3); margin-top: 10px; line-height: 1.6; }
+    .hint code, .mapping code { font-family: var(--mono); background: var(--paper-soft); padding: 1px 6px; border-radius: 2px; color: var(--accent); font-size: 11px; }
+    #chart, #cloud, #cy { border: 1px solid var(--rule); border-radius: 2px; background: var(--paper); }
+    svg { display: block; width: 100%; }
+    .controls { display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; align-items: center; }
+    .controls button, .controls select {
+      font-family: var(--sans); background: var(--paper); border: 1px solid var(--rule); color: var(--ink-2);
+      padding: 6px 14px; border-radius: 2px; cursor: pointer; font-size: 12px; transition: all .15s;
+    }
+    .controls button:hover, .controls select:hover { color: var(--accent); border-color: var(--accent); }
+    .controls button.active { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+    .controls label { color: var(--ink-3); font-family: var(--sans); font-size: 12px; }
+    .legend { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 12px; font-family: var(--sans); font-size: 11px; color: var(--ink-2); }
+    .legend span { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+    .legend i { width: 12px; height: 12px; display: inline-block; }
+    .legend .dot { border-radius: 50%; }
+    .tip { position: fixed; pointer-events: none; opacity: 0;
+      background: #fff; border: 1px solid var(--ink); padding: 10px 14px; border-radius: 2px;
+      font-family: var(--sans); font-size: 12px; max-width: 260px; line-height: 1.6;
+      transition: opacity .12s; box-shadow: 0 4px 16px rgba(0,0,0,0.08); }
+    .node-label, .face-label { font-family: var(--sans); font-size: 11px; fill: var(--ink); }
+    .ridge-label { font-family: var(--sans); font-size: 12px; font-weight: 600; }
+  
+    /* ===== 移动端响应式 ===== */
+    @media (max-width: 768px) {
+      body { padding: 16px 14px; }
+      h1 { font-size: 22px; }
+      .sub { font-size: 12px; margin-bottom: 12px; }
+      .controls { gap: 4px; }
+      .controls button, .controls select { padding: 5px 10px; font-size: 11px; }
+      .controls label { font-size: 11px; }
+      #chart, svg, #cloud, #cy {
+        height: 60vh !important;
+        min-height: 360px !important;
+      }
+      .hint, .info, .mapping, .legend { font-size: 11px; }
+      .legend { gap: 10px; }
+      .node-label, .face-label, .ridge-label { font-size: 10px; }
+    }
+    @media (max-width: 420px) {
+      body { padding: 12px 10px; }
+      h1 { font-size: 20px; }
+      #chart, svg, #cloud, #cy { height: 55vh !important; min-height: 320px !important; }
+    }
+  </style>
+</head>
+<body>
+  <h1>泰森多边形 <em>Voronoi Diagram</em></h1>
+  <div class="sub">空间势力划分 · 每个区域内位置都最近于其种子点 · 鼠标移动加种子点</div>
+  <div class="controls">
+    <button class="active" data-set="hospital">🏥 医院辐射</button>
+    <button data-set="station">📡 基站覆盖</button>
+    <button data-set="art">🎨 艺术图案</button>
+    <button id="regen">🎲 重新生成</button>
+    <label>种子数:</label>
+    <input type="range" id="count" min="10" max="120" value="40" />
+    <span id="cntLabel" style="color:#6b6b6b;font-size:12px">40</span>
+  </div>
+  <svg id="chart"></svg>
+  <div class="hint">💡 点击空白添加种子点;每个多边形 = 该种子点的"势力范围"。</div>
+
+  <script>
+    const svg = d3.select('#chart');
+    const W = () => svg.node().clientWidth;
+    const H = () => Math.max(540, svg.node().clientHeight);
+
+    const palette = ['#2c5282', '#9c4221', '#975a16', '#4a6741', '#6b5d8a', '#2d7a7a', '#8a5a2b', '#3d5a80'];
+
+    function genPoints(n, mode) {
+      const pts = [];
+      if (mode === 'art') {
+        // 艺术模式:带聚簇
+        const clusters = 5;
+        const centers = Array.from({length: clusters}, () => [Math.random() * W(), Math.random() * H()]);
+        for (let i = 0; i < n; i++) {
+          const c = centers[i % clusters];
+          pts.push([c[0] + (Math.random() - 0.5) * 200, c[1] + (Math.random() - 0.5) * 200]);
+        }
+      } else {
+        for (let i = 0; i < n; i++) {
+          pts.push([Math.random() * W(), Math.random() * H()]);
+        }
+      }
+      return pts.map((p, i) => ({ x: p[0], y: p[1], i }));
+    }
+
+    let curSet = 'hospital', curCount = 40, points = [];
+
+    function render() {
+      if (!points.length || points.length !== curCount) {
+        points = genPoints(curCount, curSet);
+      }
+      svg.selectAll('*').remove();
+      const w = W(), h = H();
+
+      const delaunay = d3.Delaunay.from(points, p => p.x, p => p.y);
+      const voronoi = delaunay.voronoi([0.5, 0.5, w - 0.5, h - 0.5]);
+
+      const g = svg.append('g');
+
+      // 多边形
+      g.append('g')
+        .attr('fill', 'none')
+        .attr('stroke', '#d8d4c8')
+        .attr('stroke-width', 1)
+        .selectAll('path')
+        .data(points)
+        .join('path')
+        .attr('d', (d, i) => voronoi.renderCell(i))
+        .attr('fill', (d, i) => palette[i % palette.length])
+        .attr('fill-opacity', 0.18)
+        .attr('stroke', (d, i) => palette[i % palette.length])
+        .attr('stroke-opacity', 0.7)
+        .style('cursor', 'pointer')
+        .on('mouseenter', function() { d3.select(this).attr('fill-opacity', 0.5).attr('stroke-width', 2); })
+        .on('mouseleave', function() { d3.select(this).attr('fill-opacity', 0.18).attr('stroke-width', 1); });
+
+      // 种子点
+      g.append('g')
+        .selectAll('circle')
+        .data(points)
+        .join('circle')
+        .attr('cx', p => p.x).attr('cy', p => p.y)
+        .attr('r', curSet === 'art' ? 2 : 4)
+        .attr('fill', curSet === 'art' ? '#fff' : '#975a16')
+        .attr('stroke', '#faf9f6').attr('stroke-width', 1);
+
+      // 标签(医院/基站场景)
+      if (curSet !== 'art' && curCount <= 60) {
+        g.append('g').selectAll('text')
+          .data(points)
+          .join('text')
+          .attr('x', p => p.x).attr('y', p => p.y - 8)
+          .attr('text-anchor', 'middle')
+          .style('fill', '#fff').style('font-size', '9px')
+          .text((d, i) => curSet === 'hospital' ? `医${i + 1}` : `站${i + 1}`);
+      }
+    }
+
+    render();
+
+    document.querySelectorAll('.controls button[data-set]').forEach(btn => {
+      btn.onclick = () => {
+        document.querySelectorAll('.controls button[data-set]').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        curSet = btn.dataset.set;
+        points = []; // 强制重新生成
+        render();
+      };
+    });
+    document.getElementById('regen').onclick = () => { points = []; render(); };
+    document.getElementById('count').oninput = function() {
+      curCount = +this.value;
+      document.getElementById('cntLabel').textContent = curCount;
+      points = [];
+      render();
+    };
+
+    // 点击添加种子
+    svg.on('click', function(e) {
+      if (e.target.tagName === 'svg' || e.target.tagName === 'SVG') {
+        const [x, y] = d3.pointer(e);
+        points.push({ x, y, i: points.length });
+        curCount = points.length;
+        document.getElementById('count').value = curCount;
+        document.getElementById('cntLabel').textContent = curCount;
+        render();
+      }
+    });
+
+    window.addEventListener('resize', render);
+  </script>
+</body>
+</html>

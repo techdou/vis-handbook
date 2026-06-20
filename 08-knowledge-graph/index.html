@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>08 · 知识图谱 Knowledge Graph</title>
+  <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,wght@0,400;0,500;1,400&family=JetBrains+Mono&family=Noto+Serif+SC:wght@400;500&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/cytoscape@3.30.2/dist/cytoscape.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --paper: #faf9f6; --paper-soft: #f3f1ea; --paper-card: #ffffff;
+      --ink: #1a1a1a; --ink-2: #3d3d3d; --ink-3: #6b6b6b;
+      --rule: #d8d4c8; --rule-soft: #e8e4d8; --accent: #2c5282; --accent-soft: #ebf0f7;
+      --rust: #9c4221; --ochre: #975a16; --moss: #4a6741;
+      --serif: "Source Serif 4", "Noto Serif SC", Georgia, serif;
+      --sans: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+      --mono: "JetBrains Mono", Consolas, monospace;
+    }
+    body { background: var(--paper); color: var(--ink);
+      font-family: var(--serif); padding: 24px 32px; min-height: 100vh; }
+    h1 { font-family: var(--serif); font-size: 26px; font-weight: 500; letter-spacing: -0.01em; }
+    h1 em { font-style: italic; color: var(--accent); font-weight: 400; }
+    .sub { font-family: var(--sans); color: var(--ink-3); font-size: 13px; margin: 6px 0 18px; line-height: 1.5; }
+    .hint, .info, .mapping { font-family: var(--sans); font-size: 12px; color: var(--ink-3); margin-top: 10px; line-height: 1.6; }
+    .hint code, .mapping code { font-family: var(--mono); background: var(--paper-soft); padding: 1px 6px; border-radius: 2px; color: var(--accent); font-size: 11px; }
+    #chart, #cloud, #cy { border: 1px solid var(--rule); border-radius: 2px; background: var(--paper); }
+    svg { display: block; width: 100%; }
+    .controls { display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; align-items: center; }
+    .controls button, .controls select {
+      font-family: var(--sans); background: var(--paper); border: 1px solid var(--rule); color: var(--ink-2);
+      padding: 6px 14px; border-radius: 2px; cursor: pointer; font-size: 12px; transition: all .15s;
+    }
+    .controls button:hover, .controls select:hover { color: var(--accent); border-color: var(--accent); }
+    .controls button.active { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+    .controls label { color: var(--ink-3); font-family: var(--sans); font-size: 12px; }
+    .legend { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 12px; font-family: var(--sans); font-size: 11px; color: var(--ink-2); }
+    .legend span { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+    .legend i { width: 12px; height: 12px; display: inline-block; }
+    .legend .dot { border-radius: 50%; }
+    .tip { position: fixed; pointer-events: none; opacity: 0;
+      background: #fff; border: 1px solid var(--ink); padding: 10px 14px; border-radius: 2px;
+      font-family: var(--sans); font-size: 12px; max-width: 260px; line-height: 1.6;
+      transition: opacity .12s; box-shadow: 0 4px 16px rgba(0,0,0,0.08); }
+    .node-label, .face-label { font-family: var(--sans); font-size: 11px; fill: var(--ink); }
+    .ridge-label { font-family: var(--sans); font-size: 12px; font-weight: 600; }
+  
+    /* ===== 移动端响应式 ===== */
+    @media (max-width: 768px) {
+      body { padding: 16px 14px; }
+      h1 { font-size: 22px; }
+      .sub { font-size: 12px; margin-bottom: 12px; }
+      .controls { gap: 4px; }
+      .controls button, .controls select { padding: 5px 10px; font-size: 11px; }
+      .controls label { font-size: 11px; }
+      #chart, svg, #cloud, #cy {
+        height: 60vh !important;
+        min-height: 360px !important;
+      }
+      .hint, .info, .mapping, .legend { font-size: 11px; }
+      .legend { gap: 10px; }
+      .node-label, .face-label, .ridge-label { font-size: 10px; }
+    }
+    @media (max-width: 420px) {
+      body { padding: 12px 10px; }
+      h1 { font-size: 20px; }
+      #chart, svg, #cloud, #cy { height: 55vh !important; min-height: 320px !important; }
+    }
+  </style>
+</head>
+<body>
+  <h1>知识图谱 <em>Knowledge Graph</em></h1>
+  <div class="sub">实体-关系-本体 · 点击节点高亮 K 跳邻居 · 多种布局算法</div>
+  <div class="layout-row">
+    <button class="active" data-set="ai">🤖 AI 知识图谱</button>
+    <button data-set="movie">🎬 影视人物关系</button>
+    <label style="color:#6b6b6b;font-size:12px">布局:</label>
+    <select id="layout">
+      <option value="cose">力导向 (cose)</option>
+      <option value="breadthfirst">层次 (breadthfirst)</option>
+      <option value="circle">圆周 (circle)</option>
+      <option value="concentric">同心 (concentric)</option>
+    </select>
+    <button id="reset">🎯 重置视图</button>
+    <span style="color:#6b6b6b;font-size:12px;margin-left:auto">点击实体查看详情 · 滚轮缩放</span>
+  </div>
+  <div id="cy"></div>
+  <div class="legend" id="legend"></div>
+  <div class="info" id="info"></div>
+
+  <script>
+    const typeColors = {
+      person: '#2c5282', concept: '#9c4221', org: '#975a16',
+      tech: '#975a16', place: '#4a6741', work: '#6b5d8a'
+    };
+    const typeLabels = {
+      person: '人物', concept: '概念', org: '机构',
+      tech: '技术', place: '地点', work: '作品'
+    };
+
+    const DATASETS = {
+      ai: {
+        legend: ['concept', 'tech', 'person', 'org'],
+        nodes: [
+          { id: 'ai', label: '人工智能', type: 'concept' },
+          { id: 'ml', label: '机器学习', type: 'concept' },
+          { id: 'dl', label: '深度学习', type: 'concept' },
+          { id: 'nn', label: '神经网络', type: 'tech' },
+          { id: 'cnn', label: 'CNN', type: 'tech' },
+          { id: 'rnn', label: 'RNN', type: 'tech' },
+          { id: 'tf', label: 'Transformer', type: 'tech' },
+          { id: 'hinton', label: 'Hinton', type: 'person' },
+          { id: 'lecun', label: 'LeCun', type: 'person' },
+          { id: 'google', label: 'Google', type: 'org' },
+          { id: 'bert', label: 'BERT', type: 'tech' },
+          { id: 'gpt', label: 'GPT', type: 'tech' },
+        ],
+        edges: [
+          { s: 'ml', t: 'ai', l: '属于' },
+          { s: 'dl', t: 'ml', l: '属于' },
+          { s: 'nn', t: 'dl', l: '实现' },
+          { s: 'cnn', t: 'nn', l: '类型' },
+          { s: 'rnn', t: 'nn', l: '类型' },
+          { s: 'tf', t: 'nn', l: '基于' },
+          { s: 'bert', t: 'tf', l: '基于' },
+          { s: 'gpt', t: 'tf', l: '基于' },
+          { s: 'hinton', t: 'dl', l: '提出' },
+          { s: 'lecun', t: 'cnn', l: '提出' },
+          { s: 'google', t: 'tf', l: '发布' },
+          { s: 'google', t: 'bert', l: '发布' },
+          { s: 'hinton', t: 'google', l: '任职' },
+        ]
+      },
+      movie: {
+        legend: ['person', 'work', 'org'],
+        nodes: [
+          { id: 'nolan', label: 'Christopher Nolan', type: 'person' },
+          { id: 'inception', label: '盗梦空间', type: 'work' },
+          { id: 'interstellar', label: '星际穿越', type: 'work' },
+          { id: 'oppenheimer', label: '奥本海默', type: 'work' },
+          { id: 'cillian', label: 'Cillian Murphy', type: 'person' },
+          { id: 'leonardo', label: 'Leonardo DiCaprio', type: 'person' },
+          { id: 'warner', label: '华纳兄弟', type: 'org' },
+          { id: 'paramount', label: '派拉蒙', type: 'org' },
+        ],
+        edges: [
+          { s: 'nolan', t: 'inception', l: '导演' },
+          { s: 'nolan', t: 'interstellar', l: '导演' },
+          { s: 'nolan', t: 'oppenheimer', l: '导演' },
+          { s: 'leonardo', t: 'inception', l: '主演' },
+          { s: 'cillian', t: 'oppenheimer', l: '主演' },
+          { s: 'warner', t: 'inception', l: '发行' },
+          { s: 'paramount', t: 'interstellar', l: '发行' },
+          { s: 'warner', t: 'oppenheimer', l: '发行' },
+        ]
+      }
+    };
+
+    let cy, curSet = 'ai', curLayout = 'cose';
+    const info = document.getElementById('info');
+
+    function build() {
+      const d = DATASETS[curSet];
+      const elements = [
+        ...d.nodes.map(n => ({ data: { id: n.id, label: n.label, type: n.type } })),
+        ...d.edges.map(e => ({ data: { id: `${e.s}-${e.t}`, source: e.s, target: e.t, label: e.l } }))
+      ];
+
+      cy = cytoscape({
+        container: document.getElementById('cy'),
+        elements,
+        style: [
+          {
+            selector: 'node',
+            style: {
+              'label': 'data(label)',
+              'text-valign': 'center', 'text-halign': 'center',
+              'color': '#fff', 'font-size': '10px', 'font-weight': 600,
+              'background-color': ele => typeColors[ele.data('type')] || '#2c5282',
+              'width': 56, 'height': 56,
+              'border-width': 2, 'border-color': '#faf9f6',
+              'text-wrap': 'wrap', 'text-max-width': '50px'
+            }
+          },
+          {
+            selector: 'node.highlighted',
+            style: { 'border-color': '#fff', 'border-width': 4, 'width': 64, 'height': 64 }
+          },
+          {
+            selector: 'node.faded',
+            style: { 'opacity': 0.15 }
+          },
+          {
+            selector: 'edge',
+            style: {
+              'label': 'data(label)',
+              'width': 1.5, 'line-color': '#d8d4c8',
+              'target-arrow-color': '#9c4221', 'target-arrow-shape': 'triangle',
+              'curve-style': 'bezier',
+              'color': '#6b6b6b', 'font-size': '9px',
+              'text-background-color': '#faf9f6', 'text-background-padding': '2px'
+            }
+          },
+          {
+            selector: 'edge.highlighted',
+            style: { 'width': 3, 'line-color': '#9c4221', 'target-arrow-color': '#9c4221' }
+          },
+          {
+            selector: 'edge.faded',
+            style: { 'opacity': 0.08 }
+          }
+        ],
+        layout: { name: curLayout, animate: true, animationDuration: 600,
+                  ...(curLayout === 'cose' ? { nodeRepulsion: 8000, idealEdgeLength: 100 } : {}) }
+      });
+
+      // 点击节点:高亮 1 跳邻居
+      cy.on('tap', 'node', function(e) {
+        const node = e.target;
+        const neighborhood = node.closedNeighborhood();
+        cy.elements().removeClass('highlighted faded');
+        cy.elements().not(neighborhood).addClass('faded');
+        neighborhood.addClass('highlighted');
+
+        const inEdges = node.incomers(), outEdges = node.outgoers();
+        const relations = [];
+        inEdges.edges().forEach(ed => {
+          relations.push(`${ed.source().data('label')} →<i>${ed.data('label')}</i>→ ${node.data('label')}`);
+        });
+        outEdges.edges().forEach(ed => {
+          relations.push(`${node.data('label')} →<i>${ed.data('label')}</i>→ ${ed.target().data('label')}`);
+        });
+        info.style('opacity', 1).innerHTML =
+          `<div style="color:${typeColors[node.data('type')]};font-weight:700;font-size:14px;margin-bottom:6px">
+             ${node.data('label')}</div>
+           <div style="color:#6b6b6b">类型:${typeLabels[node.data('type')] || node.data('type')}</div>
+           <div style="margin-top:8px;color:#9c4221">关系 (${relations.length}):</div>
+           <div style="color:#1a1a1a">${relations.join('<br/>')}</div>`;
+      });
+
+      // 点空白重置
+      cy.on('tap', function(e) {
+        if (e.target === cy) {
+          cy.elements().removeClass('highlighted faded');
+          info.style('opacity', 0);
+        }
+      });
+
+      // 图例
+      const legend = document.getElementById('legend');
+      legend.innerHTML = '';
+      d.legend.forEach(t => {
+        legend.innerHTML += `<span><i style="background:${typeColors[t]}"></i>${typeLabels[t]}</span>`;
+      });
+    }
+
+    build();
+
+    document.querySelectorAll('.layout-row button[data-set]').forEach(btn => {
+      btn.onclick = () => {
+        document.querySelectorAll('.layout-row button[data-set]').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active'); curSet = btn.dataset.set; build();
+      };
+    });
+    document.getElementById('layout').onchange = function() {
+      curLayout = this.value;
+      cy.layout({ name: curLayout, animate: true, animationDuration: 600 }).run();
+    };
+    document.getElementById('reset').onclick = () => {
+      cy.elements().removeClass('highlighted faded');
+      cy.animate({ fit: { eles: cy.elements(), padding: 40 } }, { duration: 400 });
+      info.style('opacity', 0);
+    };
+    window.addEventListener('resize', () => cy && cy.resize());
+  </script>
+</body>
+</html>

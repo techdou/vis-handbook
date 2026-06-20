@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>19 · 边捆绑图 Edge Bundling</title>
+  <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,wght@0,400;0,500;1,400&family=JetBrains+Mono&family=Noto+Serif+SC:wght@400;500&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --paper: #faf9f6; --paper-soft: #f3f1ea; --paper-card: #ffffff;
+      --ink: #1a1a1a; --ink-2: #3d3d3d; --ink-3: #6b6b6b;
+      --rule: #d8d4c8; --rule-soft: #e8e4d8; --accent: #2c5282; --accent-soft: #ebf0f7;
+      --rust: #9c4221; --ochre: #975a16; --moss: #4a6741;
+      --serif: "Source Serif 4", "Noto Serif SC", Georgia, serif;
+      --sans: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+      --mono: "JetBrains Mono", Consolas, monospace;
+    }
+    body { background: var(--paper); color: var(--ink);
+      font-family: var(--serif); padding: 24px 32px; min-height: 100vh; }
+    h1 { font-family: var(--serif); font-size: 26px; font-weight: 500; letter-spacing: -0.01em; }
+    h1 em { font-style: italic; color: var(--accent); font-weight: 400; }
+    .sub { font-family: var(--sans); color: var(--ink-3); font-size: 13px; margin: 6px 0 18px; line-height: 1.5; }
+    .hint, .info, .mapping { font-family: var(--sans); font-size: 12px; color: var(--ink-3); margin-top: 10px; line-height: 1.6; }
+    .hint code, .mapping code { font-family: var(--mono); background: var(--paper-soft); padding: 1px 6px; border-radius: 2px; color: var(--accent); font-size: 11px; }
+    #chart, #cloud, #cy { border: 1px solid var(--rule); border-radius: 2px; background: var(--paper); }
+    svg { display: block; width: 100%; }
+    .controls { display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; align-items: center; }
+    .controls button, .controls select {
+      font-family: var(--sans); background: var(--paper); border: 1px solid var(--rule); color: var(--ink-2);
+      padding: 6px 14px; border-radius: 2px; cursor: pointer; font-size: 12px; transition: all .15s;
+    }
+    .controls button:hover, .controls select:hover { color: var(--accent); border-color: var(--accent); }
+    .controls button.active { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+    .controls label { color: var(--ink-3); font-family: var(--sans); font-size: 12px; }
+    .legend { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 12px; font-family: var(--sans); font-size: 11px; color: var(--ink-2); }
+    .legend span { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+    .legend i { width: 12px; height: 12px; display: inline-block; }
+    .legend .dot { border-radius: 50%; }
+    .tip { position: fixed; pointer-events: none; opacity: 0;
+      background: #fff; border: 1px solid var(--ink); padding: 10px 14px; border-radius: 2px;
+      font-family: var(--sans); font-size: 12px; max-width: 260px; line-height: 1.6;
+      transition: opacity .12s; box-shadow: 0 4px 16px rgba(0,0,0,0.08); }
+    .node-label, .face-label { font-family: var(--sans); font-size: 11px; fill: var(--ink); }
+    .ridge-label { font-family: var(--sans); font-size: 12px; font-weight: 600; }
+  
+    /* ===== 移动端响应式 ===== */
+    @media (max-width: 768px) {
+      body { padding: 16px 14px; }
+      h1 { font-size: 22px; }
+      .sub { font-size: 12px; margin-bottom: 12px; }
+      .controls { gap: 4px; }
+      .controls button, .controls select { padding: 5px 10px; font-size: 11px; }
+      .controls label { font-size: 11px; }
+      #chart, svg, #cloud, #cy {
+        height: 60vh !important;
+        min-height: 360px !important;
+      }
+      .hint, .info, .mapping, .legend { font-size: 11px; }
+      .legend { gap: 10px; }
+      .node-label, .face-label, .ridge-label { font-size: 10px; }
+    }
+    @media (max-width: 420px) {
+      body { padding: 12px 10px; }
+      h1 { font-size: 20px; }
+      #chart, svg, #cloud, #cy { height: 55vh !important; min-height: 320px !important; }
+    }
+  </style>
+</head>
+<body>
+  <h1>边捆绑图 <em>Edge Bundling</em></h1>
+  <div class="sub">复杂网络曲线化 · 同向边聚成束 · 减少视觉混乱 · 径向布局</div>
+  <div class="controls">
+    <button class="active" data-set="news">📰 新闻流</button>
+    <button data-set="flight">✈️ 航班流</button>
+    <button data-set="dep">📦 模块依赖</button>
+    <label>捆绑率 β:</label>
+    <input type="range" id="beta" min="0" max="1" step="0.05" value="0.85" />
+    <span id="betaLabel" style="color:#6b6b6b;font-size:12px">0.85</span>
+  </div>
+  <svg id="chart"></svg>
+  <div class="hint">💡 捆绑率 β=0 时是直线,β=1 时完全聚束。颜色按源节点分组。</div>
+
+  <script>
+    const svg = d3.select('#chart');
+    const palette = ['#2c5282', '#9c4221', '#975a16', '#4a6741', '#6b5d8a', '#2d7a7a', '#8a5a2b', '#3d5a80'];
+
+    function genRadial(n, W, H) {
+      const r = Math.min(W, H) / 2 - 60;
+      const cx = W / 2, cy = H / 2;
+      const nodes = [];
+      for (let i = 0; i < n; i++) {
+        const angle = (i / n) * 2 * Math.PI - Math.PI / 2;
+        nodes.push({ id: 'N' + i, x: cx + r * Math.cos(angle), y: cy + r * Math.sin(angle), angle });
+      }
+      return nodes;
+    }
+
+    function genLinks(nodes, density) {
+      const links = [];
+      const n = nodes.length;
+      for (let i = 0; i < n; i++) {
+        // 每个节点出 2-4 条边,跳到不相邻节点
+        const k = 2 + Math.floor(Math.random() * density);
+        for (let j = 0; j < k; j++) {
+          const target = (i + 3 + Math.floor(Math.random() * (n - 6))) % n;
+          if (target !== i) {
+            links.push({ source: nodes[i], target: nodes[target], value: 1 + Math.random() * 5 });
+          }
+        }
+      }
+      return links;
+    }
+
+    const DATASETS = {
+      news: { n: 24, density: 3, label: 'N' },
+      flight: { n: 30, density: 2, label: '航' },
+      dep: { n: 20, density: 4, label: 'M' },
+    };
+
+    let curSet = 'news', curBeta = 0.85;
+
+    function render() {
+      const cfg = DATASETS[curSet];
+      svg.selectAll('*').remove();
+      const W = svg.node().clientWidth;
+      const H = Math.max(540, svg.node().clientHeight);
+      const cx = W / 2, cy = H / 2;
+
+      const nodes = genRadial(cfg.n, W, H);
+      const links = genLinks(nodes, cfg.density);
+
+      // 径向捆绑曲线:控制点指向圆心,偏移 beta
+      const bundle = (link) => {
+        const mx = (link.source.x + link.target.x) / 2;
+        const my = (link.source.y + link.target.y) / 2;
+        const dx = cx - mx, dy = cy - my;
+        return {
+          x: mx + dx * curBeta,
+          y: my + dy * curBeta
+        };
+      };
+
+      const lineGen = d3.line()
+        .x(d => d.x).y(d => d.y)
+        .curve(d3.curveBundle.beta(curBeta));
+
+      // 生成路径点(起点-控制点-终点)
+      const paths = links.map(l => {
+        const ctrl = bundle(l);
+        // 在 source-ctrl-target 间插值生成多个点供 curveBundle 使用
+        const pts = [];
+        const steps = 12;
+        for (let i = 0; i <= steps; i++) {
+          const t = i / steps;
+          // 二次贝塞尔
+          const x = (1 - t) ** 2 * l.source.x + 2 * (1 - t) * t * ctrl.x + t ** 2 * l.target.x;
+          const y = (1 - t) ** 2 * l.source.y + 2 * (1 - t) * t * ctrl.y + t ** 2 * l.target.y;
+          pts.push({ x, y });
+        }
+        return { link: l, pts };
+      });
+
+      const g = svg.append('g');
+
+      // 边束
+      g.append('g').selectAll('path')
+        .data(paths)
+        .join('path')
+        .attr('d', p => lineGen(p.pts))
+        .attr('fill', 'none')
+        .attr('stroke', p => palette[nodes.indexOf(p.link.source) % palette.length])
+        .attr('stroke-width', p => Math.max(0.6, p.link.value / 3))
+        .attr('stroke-opacity', 0.35)
+        .style('transition', 'stroke-opacity .2s')
+        .on('mouseenter', function() { d3.select(this).attr('stroke-opacity', 1).attr('stroke-width', 2.5); })
+        .on('mouseleave', function() { d3.select(this).attr('stroke-opacity', 0.35).attr('stroke-width', p => Math.max(0.6, p.link.value / 3)); });
+
+      // 节点
+      g.append('g').selectAll('g')
+        .data(nodes)
+        .join('g')
+        .attr('transform', n => `translate(${n.x},${n.y})`)
+        .each(function(n) {
+          const sel = d3.select(this);
+          sel.append('circle')
+            .attr('r', 5)
+            .attr('fill', palette[nodes.indexOf(n) % palette.length])
+            .attr('stroke', '#faf9f6').attr('stroke-width', 2);
+          // 径向标签
+          const labelAngle = n.angle;
+          const labelRotate = (labelAngle * 180 / Math.PI + 90);
+          const labelR = 16;
+          const lx = labelR * Math.cos(labelAngle), ly = labelR * Math.sin(labelAngle);
+          sel.append('text')
+            .attr('x', lx).attr('y', ly)
+            .attr('text-anchor', Math.cos(labelAngle) > 0 ? 'start' : 'end')
+            .attr('dominant-baseline', 'middle')
+            .style('fill', '#1a1a1a').style('font-size', '10px')
+            .text(cfg.label + nodes.indexOf(n));
+        });
+
+      // 标题
+      svg.append('text').attr('x', W / 2).attr('y', 24).attr('text-anchor', 'middle')
+        .style('fill', '#6b6b6b').style('font-size', '13px')
+        .text(`${curSet} 数据集 · ${nodes.length} 节点 · ${links.length} 边`);
+    }
+
+    render();
+    document.querySelectorAll('.controls button[data-set]').forEach(btn => {
+      btn.onclick = () => {
+        document.querySelectorAll('.controls button[data-set]').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active'); curSet = btn.dataset.set; render();
+      };
+    });
+    document.getElementById('beta').oninput = function() {
+      curBeta = +this.value;
+      document.getElementById('betaLabel').textContent = curBeta.toFixed(2);
+      render();
+    };
+    window.addEventListener('resize', render);
+  </script>
+</body>
+</html>

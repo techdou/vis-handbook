@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>10 · 弦图 Chord Diagram</title>
+  <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,wght@0,400;0,500;1,400&family=JetBrains+Mono&family=Noto+Serif+SC:wght@400;500&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --paper: #faf9f6; --paper-soft: #f3f1ea; --paper-card: #ffffff;
+      --ink: #1a1a1a; --ink-2: #3d3d3d; --ink-3: #6b6b6b;
+      --rule: #d8d4c8; --rule-soft: #e8e4d8; --accent: #2c5282; --accent-soft: #ebf0f7;
+      --rust: #9c4221; --ochre: #975a16; --moss: #4a6741;
+      --serif: "Source Serif 4", "Noto Serif SC", Georgia, serif;
+      --sans: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+      --mono: "JetBrains Mono", Consolas, monospace;
+    }
+    body { background: var(--paper); color: var(--ink);
+      font-family: var(--serif); padding: 24px 32px; min-height: 100vh; }
+    h1 { font-family: var(--serif); font-size: 26px; font-weight: 500; letter-spacing: -0.01em; }
+    h1 em { font-style: italic; color: var(--accent); font-weight: 400; }
+    .sub { font-family: var(--sans); color: var(--ink-3); font-size: 13px; margin: 6px 0 18px; line-height: 1.5; }
+    .hint, .info, .mapping { font-family: var(--sans); font-size: 12px; color: var(--ink-3); margin-top: 10px; line-height: 1.6; }
+    .hint code, .mapping code { font-family: var(--mono); background: var(--paper-soft); padding: 1px 6px; border-radius: 2px; color: var(--accent); font-size: 11px; }
+    #chart, #cloud, #cy { border: 1px solid var(--rule); border-radius: 2px; background: var(--paper); }
+    svg { display: block; width: 100%; }
+    .controls { display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; align-items: center; }
+    .controls button, .controls select {
+      font-family: var(--sans); background: var(--paper); border: 1px solid var(--rule); color: var(--ink-2);
+      padding: 6px 14px; border-radius: 2px; cursor: pointer; font-size: 12px; transition: all .15s;
+    }
+    .controls button:hover, .controls select:hover { color: var(--accent); border-color: var(--accent); }
+    .controls button.active { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+    .controls label { color: var(--ink-3); font-family: var(--sans); font-size: 12px; }
+    .legend { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 12px; font-family: var(--sans); font-size: 11px; color: var(--ink-2); }
+    .legend span { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+    .legend i { width: 12px; height: 12px; display: inline-block; }
+    .legend .dot { border-radius: 50%; }
+    .tip { position: fixed; pointer-events: none; opacity: 0;
+      background: #fff; border: 1px solid var(--ink); padding: 10px 14px; border-radius: 2px;
+      font-family: var(--sans); font-size: 12px; max-width: 260px; line-height: 1.6;
+      transition: opacity .12s; box-shadow: 0 4px 16px rgba(0,0,0,0.08); }
+    .node-label, .face-label { font-family: var(--sans); font-size: 11px; fill: var(--ink); }
+    .ridge-label { font-family: var(--sans); font-size: 12px; font-weight: 600; }
+  
+    /* ===== 移动端响应式 ===== */
+    @media (max-width: 768px) {
+      body { padding: 16px 14px; }
+      h1 { font-size: 22px; }
+      .sub { font-size: 12px; margin-bottom: 12px; }
+      .controls { gap: 4px; }
+      .controls button, .controls select { padding: 5px 10px; font-size: 11px; }
+      .controls label { font-size: 11px; }
+      #chart, svg, #cloud, #cy {
+        height: 60vh !important;
+        min-height: 360px !important;
+      }
+      .hint, .info, .mapping, .legend { font-size: 11px; }
+      .legend { gap: 10px; }
+      .node-label, .face-label, .ridge-label { font-size: 10px; }
+    }
+    @media (max-width: 420px) {
+      body { padding: 12px 10px; }
+      h1 { font-size: 20px; }
+      #chart, svg, #cloud, #cy { height: 55vh !important; min-height: 320px !important; }
+    }
+  </style>
+</head>
+<body>
+  <h1>弦图 <em>Chord Diagram</em></h1>
+  <div class="sub">圆周布局 · N×N 关系矩阵 · 弧长=规模 · 弦粗=流量 · 悬浮高亮</div>
+  <div class="controls">
+    <button class="active" data-set="trade">🌍 国际贸易</button>
+    <button data-set="flow">💬 信息流</button>
+    <button data-set="brain">🧠 脑区连接</button>
+  </div>
+  <div id="chart"></div>
+
+  <script>
+    const chart = echarts.init(document.getElementById('chart'));
+    const palette = ['#2c5282', '#9c4221', '#975a16', '#4a6741', '#6b5d8a', '#2d7a7a', '#8a5a2b', '#3d5a80'];
+
+    const DATASETS = {
+      trade: {
+        title: '主要国家间贸易流向 (单位:百亿美元)',
+        nodes: ['中国', '美国', '欧盟', '日本', '韩国', '东盟'],
+        // 邻接矩阵 [from][to]
+        matrix: [
+          [0,  55, 78, 35, 28, 62],
+          [48, 0, 65, 22, 18, 30],
+          [72, 60, 0, 28, 20, 25],
+          [38, 25, 30, 0,  18, 22],
+          [30, 20, 22, 20, 0,  25],
+          [58, 28, 26, 24, 22, 0 ],
+        ]
+      },
+      flow: {
+        title: '新闻网站间用户跳转流量',
+        nodes: ['门户A', '门户B', '社交', '视频', '电商', '搜索'],
+        matrix: [
+          [0,  35, 50, 28, 18, 40],
+          [32, 0,  45, 30, 15, 38],
+          [55, 48, 0,  62, 22, 35],
+          [25, 28, 60, 0,  20, 30],
+          [15, 18, 25, 22, 0,  45],
+          [42, 40, 38, 32, 50, 0 ],
+        ]
+      },
+      brain: {
+        title: '大脑功能区连接强度',
+        nodes: ['前额叶', '顶叶', '颞叶', '枕叶', '小脑', '海马', '丘脑', '杏仁核'],
+        matrix: (() => {
+          const n = 8, m = [];
+          for (let i = 0; i < n; i++) {
+            m.push([]);
+            for (let j = 0; j < n; j++) {
+              m[i].push(i === j ? 0 : Math.round(Math.random() * 80 * (1 - Math.abs(i - j) / n) + 5));
+            }
+          }
+          return m;
+        })()
+      }
+    };
+
+    function render(key) {
+      const d = DATASETS[key];
+      // ECharts graph circular 布局做弦图
+      const nodes = d.nodes.map((name, i) => ({ name, symbolSize: 30 + d.matrix[i].reduce((a, b) => a + b, 0) / 20 }));
+      const links = [];
+      for (let i = 0; i < d.nodes.length; i++) {
+        for (let j = 0; j < d.nodes.length; j++) {
+          if (i !== j && d.matrix[i][j] > 0) {
+            links.push({
+              source: d.nodes[i], target: d.nodes[j], value: d.matrix[i][j],
+              lineStyle: { width: Math.max(1, d.matrix[i][j] / 8), opacity: 0.5,
+                           color: palette[i], curveness: 0.3 }
+            });
+          }
+        }
+      }
+
+      chart.setOption({
+        backgroundColor: 'transparent',
+        title: { text: d.title, left: 'center', textStyle: { fontSize: 14, color: '#6b6b6b' } },
+        tooltip: {
+          formatter: p => {
+            if (p.dataType === 'edge') {
+              return `${p.data.source} → ${p.data.target}<br/>流量: <b style="color:#9c4221">${p.data.value}</b>`;
+            }
+            return `<b>${p.name}</b>`;
+          }
+        },
+        series: [{
+          type: 'graph',
+          layout: 'circular',
+          circular: { rotateLabel: true },
+          data: nodes.map((n, i) => ({
+            ...n,
+            itemStyle: { color: palette[i % palette.length] },
+            label: { show: true, color: '#1a1a1a', fontSize: 12, fontWeight: 600 }
+          })),
+          links,
+          emphasis: {
+            focus: 'adjacency',
+            lineStyle: { width: 6, opacity: 1 }
+          },
+          lineStyle: { color: 'source' },
+          animationDuration: 1500,
+          animationEasingUpdate: 'quinticInOut'
+        }]
+      }, true);
+    }
+
+    render('trade');
+    document.querySelectorAll('.controls button').forEach(btn => {
+      btn.onclick = () => {
+        document.querySelectorAll('.controls button').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        render(btn.dataset.set);
+      };
+    });
+    window.addEventListener('resize', () => chart.resize());
+  </script>
+</body>
+</html>

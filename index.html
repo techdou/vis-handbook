@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>可视化图谱 · The Visualization Handbook</title>
+  <meta name="description" content="22 类高级可视化图表调研手册:桑基图、箱线图、河流图、热力矩阵、演化时间线、网络图、降维图、知识图谱、DTW、弦图、矩形树图、旭日图、山脊图、平行坐标、Voronoi、日历热力、弧图、蜂群图、边捆绑、词云、3D 曲面、切尔诺夫脸。" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,500;0,8..60,600;1,8..60,400;1,8..60,500&family=JetBrains+Mono:wght@400;500&family=Noto+Serif+SC:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="./assets/style.css" />
+</head>
+<body>
+
+  <!-- 顶部导航 -->
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-logo">V</span>
+      <div>
+        <span class="brand-name">可视化图谱</span>
+        <span class="brand-sub">Vis Handbook</span>
+      </div>
+    </div>
+    <nav class="nav-actions">
+      <a href="#" id="btnHome">目录</a>
+      <a href="./resources.html">参考资源</a>
+      <a href="https://echarts.apache.org" target="_blank">ECharts</a>
+      <a href="https://d3js.org" target="_blank">D3</a>
+    </nav>
+  </header>
+
+  <!-- 主容器:封面 + 各图表详情页都在这里切换 -->
+  <main class="container" id="app"></main>
+
+  <!-- 底部翻页 -->
+  <footer class="pager">
+    <div class="pager-info" id="pagerInfo"></div>
+    <div class="pager-btns">
+      <button id="btnPrev">← 上一页</button>
+      <span class="muted" style="font-size:12px;">← / → 键盘翻页</span>
+      <button id="btnNext">下一页 →</button>
+    </div>
+  </footer>
+
+  <script src="./assets/charts-data.js"></script>
+  <script src="./assets/app.js"></script>
+</body>
+</html>

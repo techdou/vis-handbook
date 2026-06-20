@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>03 · 河流图 Streamgraph</title>
+  <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,wght@0,400;0,500;1,400&family=JetBrains+Mono&family=Noto+Serif+SC:wght@400;500&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --paper: #faf9f6; --paper-soft: #f3f1ea; --paper-card: #ffffff;
+      --ink: #1a1a1a; --ink-2: #3d3d3d; --ink-3: #6b6b6b;
+      --rule: #d8d4c8; --rule-soft: #e8e4d8; --accent: #2c5282; --accent-soft: #ebf0f7;
+      --rust: #9c4221; --ochre: #975a16; --moss: #4a6741;
+      --serif: "Source Serif 4", "Noto Serif SC", Georgia, serif;
+      --sans: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+      --mono: "JetBrains Mono", Consolas, monospace;
+    }
+    body { background: var(--paper); color: var(--ink);
+      font-family: var(--serif); padding: 24px 32px; min-height: 100vh; }
+    h1 { font-family: var(--serif); font-size: 26px; font-weight: 500; letter-spacing: -0.01em; }
+    h1 em { font-style: italic; color: var(--accent); font-weight: 400; }
+    .sub { font-family: var(--sans); color: var(--ink-3); font-size: 13px; margin: 6px 0 18px; line-height: 1.5; }
+    .hint, .info, .mapping { font-family: var(--sans); font-size: 12px; color: var(--ink-3); margin-top: 10px; line-height: 1.6; }
+    .hint code, .mapping code { font-family: var(--mono); background: var(--paper-soft); padding: 1px 6px; border-radius: 2px; color: var(--accent); font-size: 11px; }
+    #chart, #cloud, #cy { border: 1px solid var(--rule); border-radius: 2px; background: var(--paper); }
+    svg { display: block; width: 100%; }
+    .controls { display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; align-items: center; }
+    .controls button, .controls select {
+      font-family: var(--sans); background: var(--paper); border: 1px solid var(--rule); color: var(--ink-2);
+      padding: 6px 14px; border-radius: 2px; cursor: pointer; font-size: 12px; transition: all .15s;
+    }
+    .controls button:hover, .controls select:hover { color: var(--accent); border-color: var(--accent); }
+    .controls button.active { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+    .controls label { color: var(--ink-3); font-family: var(--sans); font-size: 12px; }
+    .legend { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 12px; font-family: var(--sans); font-size: 11px; color: var(--ink-2); }
+    .legend span { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+    .legend i { width: 12px; height: 12px; display: inline-block; }
+    .legend .dot { border-radius: 50%; }
+    .tip { position: fixed; pointer-events: none; opacity: 0;
+      background: #fff; border: 1px solid var(--ink); padding: 10px 14px; border-radius: 2px;
+      font-family: var(--sans); font-size: 12px; max-width: 260px; line-height: 1.6;
+      transition: opacity .12s; box-shadow: 0 4px 16px rgba(0,0,0,0.08); }
+    .node-label, .face-label { font-family: var(--sans); font-size: 11px; fill: var(--ink); }
+    .ridge-label { font-family: var(--sans); font-size: 12px; font-weight: 600; }
+  
+    /* ===== 移动端响应式 ===== */
+    @media (max-width: 768px) {
+      body { padding: 16px 14px; }
+      h1 { font-size: 22px; }
+      .sub { font-size: 12px; margin-bottom: 12px; }
+      .controls { gap: 4px; }
+      .controls button, .controls select { padding: 5px 10px; font-size: 11px; }
+      .controls label { font-size: 11px; }
+      #chart, svg, #cloud, #cy {
+        height: 60vh !important;
+        min-height: 360px !important;
+      }
+      .hint, .info, .mapping, .legend { font-size: 11px; }
+      .legend { gap: 10px; }
+      .node-label, .face-label, .ridge-label { font-size: 10px; }
+    }
+    @media (max-width: 420px) {
+      body { padding: 12px 10px; }
+      h1 { font-size: 20px; }
+      #chart, svg, #cloud, #cy { height: 55vh !important; min-height: 320px !important; }
+    }
+  </style>
+</head>
+<body>
+  <h1>河流图 <em>Streamgraph / ThemeRiver</em></h1>
+  <div class="sub">时序占比演化 · wiggle 居中堆叠 · D3.js 实现 · 悬浮高亮某支流</div>
+  <div class="controls">
+    <button class="active" data-set="topic">💬 话题热度</button>
+    <button data-set="music">🎵 音乐流派</button>
+    <label style="color:#6b6b6b;font-size:12px;">偏移算法:</label>
+    <select id="offset">
+      <option value="wiggle" selected>wiggle (居中河流)</option>
+      <option value="silhouette">silhouette</option>
+      <option value="expand">expand (100% 归一化)</option>
+      <option value="zero">zero (传统堆叠)</option>
+    </select>
+  </div>
+  <svg id="chart"></svg>
+  <div class="legend" id="legend"></div>
+  <div class="tooltip" id="tip"></div>
+
+  <script>
+    const svg = d3.select('#chart');
+    const W = () => svg.node().clientWidth;
+    const H = () => Math.max(480, svg.node().clientHeight);
+    const margin = { top: 20, right: 30, bottom: 30, left: 50 };
+
+    // 生成时序数据:每个时间点 × 每个类目一个值
+    function makeSeries(keys, gen) {
+      const dates = d3.range(0, 24).map(i => new Date(2024, 0, i * 15));
+      return dates.map((date, ti) => {
+        const row = { date };
+        keys.forEach((k, ki) => { row[k] = gen(ti, ki); });
+        return row;
+      });
+    }
+
+    const DATASETS = {
+      topic: {
+        title: '社交平台话题热度演化 (2024)',
+        keys: ['AI', 'Web3', '新能源', '元宇宙', '直播带货'],
+        data: makeSeries(['AI', 'Web3', '新能源', '元宇宙', '直播带货'],
+          (t, k) => {
+            const base = [80 + t * 8 + Math.sin(t / 2) * 30,
+                          100 - t * 3 + Math.cos(t / 3) * 20,
+                          40 + t * 4 + Math.sin(t) * 15,
+                          90 - t * 5,
+                          60 + Math.sin(t / 1.5) * 40][k];
+            return Math.max(5, base + (Math.random() - 0.5) * 15);
+          })
+      },
+      music: {
+        title: '音乐流派收听占比 (%)',
+        keys: ['流行', '摇滚', '电子', '嘻哈', '古典', '民谣'],
+        data: makeSeries(['流行', '摇滚', '电子', '嘻哈', '古典', '民谣'],
+          (t, k) => {
+            const base = [50 + Math.sin(t / 2) * 20,
+                          30 + Math.cos(t / 3) * 15,
+                          25 + t * 1.5,
+                          40 - t * 0.5 + Math.sin(t) * 10,
+                          20 + Math.cos(t / 2) * 8,
+                          18 + Math.sin(t / 4) * 6][k];
+            return Math.max(3, base + (Math.random() - 0.5) * 8);
+          })
+      }
+    };
+
+    const palette = ['#2c5282', '#9c4221', '#975a16', '#4a6741', '#6b5d8a', '#2d7a7a', '#8a5a2b', '#3d5a80'];
+
+    function render(key, offsetType) {
+      const d = DATASETS[key];
+      const keys = d.keys;
+      const data = d.data;
+
+      const stack = d3.stack().keys(keys).offset(d3[`stackOffset${offsetType.charAt(0).toUpperCase()}${offsetType.slice(1)}`]);
+      const series = stack(data);
+
+      const x = d3.scaleTime()
+        .domain(d3.extent(data, d => d.date))
+        .range([margin.left, W() - margin.right]);
+
+      const y = d3.scaleLinear()
+        .domain([d3.min(series, s => d3.min(s, d => d[0])),
+                 d3.max(series, s => d3.max(s, d => d[1]))])
+        .nice()
+        .range([H() - margin.bottom, margin.top]);
+
+      const area = d3.area()
+        .x(d => x(d.data.date))
+        .y0(d => y(d[0]))
+        .y1(d => y(d[1]))
+        .curve(d3.curveCardinal.tension(0.5));
+
+      svg.selectAll('*').remove();
+
+      // 渐变定义
+      const defs = svg.append('defs');
+      keys.forEach((k, i) => {
+        const g = defs.append('linearGradient').attr('id', `g${i}`)
+          .attr('x1', 0).attr('y1', 0).attr('x2', 0).attr('y2', 1);
+        g.append('stop').attr('offset', '0%').attr('stop-color', palette[i % palette.length]).attr('stop-opacity', 0.95);
+        g.append('stop').attr('offset', '100%').attr('stop-color', palette[i % palette.length]).attr('stop-opacity', 0.55);
+      });
+
+      // 路径
+      const paths = svg.append('g')
+        .selectAll('path')
+        .data(series)
+        .join('path')
+        .attr('fill', (d, i) => `url(#g${i})`)
+        .attr('d', area)
+        .attr('class', 'layer')
+        .style('cursor', 'pointer')
+        .style('transition', 'opacity .25s');
+
+      // hover 高亮某一支流
+      paths.on('mouseenter', function(e, d) {
+        paths.transition().duration(150).style('opacity', p => p === d ? 1 : 0.15);
+        const v = d[d.length - 1];
+        tip.style('opacity', 1).html(`<b style="color:${palette[keys.indexOf(d.key)]}">${d.key}</b><br/>悬浮查看该支流详情`);
+      })
+      .on('mousemove', function(e) {
+        const [mx] = d3.pointer(e, svg.node());
+        const date = x.invert(mx);
+        const i = d3.bisector(d => d.date).left(d.data.parent || d, date) || 0;
+        tip.style('left', (e.clientX + 14) + 'px').style('top', (e.clientY - 30) + 'px');
+      })
+      .on('mouseleave', function() {
+        paths.transition().duration(150).style('opacity', 1);
+        tip.style('opacity', 0);
+      });
+
+      // 坐标轴
+      svg.append('g')
+        .attr('transform', `translate(0,${H() - margin.bottom})`)
+        .call(d3.axisBottom(x).ticks(8).tickFormat(d3.timeFormat('%m月')))
+        .call(g => g.select('.domain').remove())
+        .selectAll('text').style('fill', '#6b6b6b');
+
+      svg.append('g')
+        .attr('transform', `translate(${margin.left},0)`)
+        .call(d3.axisLeft(y).ticks(6))
+        .call(g => g.select('.domain').remove())
+        .selectAll('text').style('fill', '#6b6b6b');
+
+      svg.selectAll('.tick line').attr('stroke', '#f3f1ea');
+      svg.selectAll('.tick line.grid').attr('stroke', '#f3f1ea');
+
+      // 图例
+      const legend = d3.select('#legend');
+      legend.selectAll('*').remove();
+      keys.forEach((k, i) => {
+        legend.append('span')
+          .html(`<i style="background:${palette[i % palette.length]}"></i>${k}`)
+          .on('mouseenter', () => paths.style('opacity', p => p.key === k ? 1 : 0.15))
+          .on('mouseleave', () => paths.style('opacity', 1));
+      });
+    }
+
+    const tip = d3.select('#tip');
+    let curSet = 'topic', curOffset = 'wiggle';
+
+    function refresh() { render(curSet, curOffset); }
+    refresh();
+
+    document.querySelectorAll('.controls button').forEach(btn => {
+      btn.onclick = () => {
+        document.querySelectorAll('.controls button').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        curSet = btn.dataset.set;
+        refresh();
+      };
+    });
+    document.getElementById('offset').onchange = e => { curOffset = e.target.value; refresh(); };
+    window.addEventListener('resize', refresh);
+  </script>
+</body>
+</html>

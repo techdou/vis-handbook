@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>24 · 小提琴图 Violin Plot</title>
+  <script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,wght@0,400;0,500;1,400&family=JetBrains+Mono&family=Noto+Serif+SC:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --paper: #faf9f6; --paper-soft: #f3f1ea; --ink: #1a1a1a; --ink-2: #3d3d3d; --ink-3: #6b6b6b;
+      --rule: #d8d4c8; --accent: #2c5282; --rust: #9c4221; --ochre: #975a16; --moss: #4a6741;
+      --serif: "Source Serif 4", "Noto Serif SC", Georgia, serif;
+      --sans: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+      --mono: "JetBrains Mono", Consolas, monospace;
+    }
+    body { background: var(--paper); color: var(--ink); font-family: var(--serif); padding: 24px 32px; min-height: 100vh; }
+    h1 { font-family: var(--serif); font-size: 26px; font-weight: 500; }
+    h1 em { font-style: italic; color: var(--accent); font-weight: 400; }
+    .sub { font-family: var(--sans); color: var(--ink-3); font-size: 13px; margin: 6px 0 18px; line-height: 1.5; }
+    svg { display: block; width: 100%; border: 1px solid var(--rule); border-radius: 2px; background: var(--paper); }
+    .controls { display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; align-items: center; }
+    .controls button { font-family: var(--sans); background: var(--paper); border: 1px solid var(--rule); color: var(--ink-2); padding: 6px 14px; border-radius: 2px; cursor: pointer; font-size: 12px; transition: all .15s; }
+    .controls button:hover { color: var(--accent); border-color: var(--accent); }
+    .controls button.active { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+    .controls label { color: var(--ink-3); font-family: var(--sans); font-size: 12px; }
+    .hint { font-family: var(--sans); font-size: 12px; color: var(--ink-3); margin-top: 10px; line-height: 1.6; }
+    .tip { position: fixed; pointer-events: none; opacity: 0; background: #fff; border: 1px solid var(--ink); padding: 8px 12px; border-radius: 2px; font-family: var(--sans); font-size: 12px; transition: opacity .12s; box-shadow: 0 4px 16px rgba(0,0,0,0.08); }
+    @media (max-width: 768px) {
+      body { padding: 16px 14px; } h1 { font-size: 22px; } .sub { font-size: 12px; margin-bottom: 12px; }
+      .controls { gap: 4px; } .controls button { padding: 5px 10px; font-size: 11px; }
+      svg { height: calc(100vh - 180px) !important; min-height: 380px !important; }
+      .hint { font-size: 11px; }
+    }
+    @media (max-width: 420px) { body { padding: 12px 10px; } h1 { font-size: 20px; } svg { height: calc(100vh - 160px) !important; min-height: 340px !important; } }
+  </style>
+</head>
+<body>
+  <h1>小提琴图 <em>Violin Plot</em></h1>
+  <div class="sub">箱线图升级版 · 左右对称 KDE 密度曲线 · 既看分位又看分布形态</div>
+  <div class="controls">
+    <button class="active" data-set="salary">💰 薪资分布</button>
+    <button data-set="score">📊 成绩分布</button>
+    <button data-set="gene">🧬 基因表达</button>
+  </div>
+  <svg id="chart"></svg>
+  <div class="hint">解读:小提琴"腰宽"代表该值的密度(样本多=宽),中间黑块=IQR,白点=中位数。左窄右宽=右偏分布。</div>
+  <div class="tip" id="tip"></div>
+
+  <script>
+    const svg = d3.select('#chart');
+    const margin = { top: 30, right: 40, bottom: 50, left: 70 };
+    const palette = ['#2c5282', '#9c4221', '#975a16', '#4a6741', '#6b5d8a'];
+
+    // 核密度估计
+    function kde(kernel, thresholds, data) {
+      return thresholds.map(t => [t, d3.mean(data, d => kernel(t - d))]);
+    }
+    function epanechnikov(bandwidth) {
+      return x => Math.abs(x /= bandwidth) <= 1 ? 0.75 * (1 - x * x) / bandwidth : 0;
+    }
+
+    function normal(mu, sigma, n) {
+      const out = [];
+      for (let i = 0; i < n; i++) {
+        const u1 = Math.random(), u2 = Math.random();
+        out.push(mu + Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2) * sigma);
+      }
+      return out;
+    }
+    // 双峰混合(用于基因表达场景)
+    function bimodal(mu1, mu2, sigma, n) {
+      const out = [];
+      for (let i = 0; i < n; i++) {
+        out.push((Math.random() < 0.5 ? mu1 : mu2) + normal(0, sigma, 1)[0]);
+      }
+      return out;
+    }
+
+    const DATASETS = {
+      salary: {
+        title: '各职级月薪分布 (千元)',
+        groups: [
+          { name: '初级', data: normal(12, 2.5, 200) },
+          { name: '中级', data: normal(20, 4, 200) },
+          { name: '高级', data: normal(32, 6, 200) },
+          { name: '专家', data: normal(48, 9, 200) },
+        ]
+      },
+      score: {
+        title: '各班级期末成绩 (分)',
+        groups: [
+          { name: '一班', data: normal(75, 10, 150) },
+          { name: '二班', data: bimodal(65, 88, 6, 150) },
+          { name: '三班', data: normal(82, 8, 150) },
+        ]
+      },
+      gene: {
+        title: '基因表达量 (TPM)',
+        groups: [
+          { name: '正常组', data: normal(50, 12, 200) },
+          { name: '处理A', data: bimodal(35, 75, 8, 200) },
+          { name: '处理B', data: normal(65, 15, 200) },
+        ]
+      }
+    };
+
+    const tip = d3.select('#tip');
+    let curSet = 'salary';
+
+    function render() {
+      const d = DATASETS[curSet];
+      svg.selectAll('*').remove();
+      const W = svg.node().clientWidth || 800;
+      const H = Math.max(480, Math.min(620, W * 0.55));
+      svg.attr('viewBox', `0 0 ${W} ${H}`).attr('height', H).attr('width', '100%');
+
+      const allVals = d.groups.flatMap(g => g.data);
+      const x = d3.scaleLinear().domain(d3.extent(allVals)).nice().range([margin.left, W - margin.right]);
+
+      const bandwidth = (x.domain()[1] - x.domain()[0]) / 35;
+      const thresholds = x.ticks(60);
+
+      // 算每组 KDE
+      const violins = d.groups.map((g, i) => {
+        const density = kde(epanechnikov(bandwidth), thresholds, g.data);
+        const sorted = [...g.data].sort((a, b) => a - b);
+        const q = p => {
+          const idx = (sorted.length - 1) * p;
+          const lo = Math.floor(idx), hi = Math.ceil(idx);
+          return sorted[lo] + (sorted[hi] - sorted[lo]) * (idx - lo);
+        };
+        return { name: g.name, density, q1: q(0.25), median: q(0.5), q3: q(0.75), min: sorted[0], max: sorted[sorted.length - 1], data: g.data };
+      });
+
+      const maxDensity = d3.max(violins, v => d3.max(v.density, dd => dd[1]));
+      const violinW = (W - margin.left - margin.right) / d.groups.length * 0.7;
+      const y = d3.scaleLinear().domain([0, maxDensity]).range([0, violinW]);
+
+      const g = svg.append('g');
+
+      // 标题
+      svg.append('text').attr('x', W / 2).attr('y', 20).attr('text-anchor', 'middle')
+        .style('fill', '#6b6b6b').style('font-family', 'Source Serif 4, serif').style('font-size', '13px').text(d.title);
+
+      violins.forEach((v, i) => {
+        const cx = margin.left + (i + 0.5) * (W - margin.left - margin.right) / d.groups.length;
+        const color = palette[i % palette.length];
+
+        // 小提琴左右对称面积
+        const areaLeft = d3.area()
+          .x0(dd => -y(dd[1])).x1(dd => 0)
+          .y(dd => x(dd[0])).curve(d3.curveCatmullRom);
+        const areaRight = d3.area()
+          .x0(dd => 0).x1(dd => y(dd[1]))
+          .y(dd => x(dd[0])).curve(d3.curveCatmullRom);
+
+        const vg = g.append('g').attr('transform', `translate(${cx},0)`);
+
+        vg.append('path').datum(v.density).attr('d', areaLeft)
+          .attr('fill', color).attr('fill-opacity', 0.25).attr('stroke', color).attr('stroke-width', 1.5);
+        vg.append('path').datum(v.density).attr('d', areaRight)
+          .attr('fill', color).attr('fill-opacity', 0.25).attr('stroke', color).attr('stroke-width', 1.5);
+
+        // 中间 mini boxplot
+        vg.append('rect')
+          .attr('x', -8).attr('y', x(v.q3)).attr('width', 16).attr('height', x(v.q1) - x(v.q3))
+          .attr('fill', '#1a1a1a').attr('fill-opacity', 0.85);
+        vg.append('circle').attr('cx', 0).attr('cy', x(v.median)).attr('r', 3.5).attr('fill', '#fff');
+        vg.append('line').attr('x1', 0).attr('x2', 0).attr('y1', x(v.min)).attr('y2', x(v.q1)).attr('stroke', '#1a1a1a').attr('stroke-width', 1);
+        vg.append('line').attr('x1', 0).attr('x2', 0).attr('y1', x(v.q3)).attr('y2', x(v.max)).attr('stroke', '#1a1a1a').attr('stroke-width', 1);
+
+        // 组名
+        vg.append('text').attr('y', H - margin.bottom + 24).attr('text-anchor', 'middle')
+          .style('fill', color).style('font-family', 'sans-serif').style('font-size', '12px').style('font-weight', '600').text(v.name);
+
+        // hover
+        vg.style('cursor', 'pointer')
+          .on('mouseenter', function(e) {
+            d3.select(this).select('path').attr('fill-opacity', 0.45);
+            tip.style('opacity', 1).html(`<b style="color:${color}">${v.name}</b> (n=${v.data.length})<br/>中位数: ${v.median.toFixed(1)}<br/>IQR: ${v.q1.toFixed(1)} – ${v.q3.toFixed(1)}`);
+          })
+          .on('mousemove', e => tip.style('left', (e.clientX + 14) + 'px').style('top', (e.clientY - 40) + 'px'))
+          .on('mouseleave', function() { d3.select(this).select('path').attr('fill-opacity', 0.25); tip.style('opacity', 0); });
+      });
+
+      // X 轴
+      g.append('g').attr('transform', `translate(0,${H - margin.bottom})`)
+        .call(d3.axisBottom(x).ticks(8)).call(ax => ax.select('.domain').remove())
+        .selectAll('text').style('fill', '#6b6b6b').style('font-family', 'sans-serif').style('font-size', '11px');
+      g.selectAll('.tick line').attr('stroke', '#e8e4d8');
+    }
+
+    render();
+    document.querySelectorAll('.controls button').forEach(btn => {
+      btn.onclick = () => {
+        document.querySelectorAll('.controls button').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active'); curSet = btn.dataset.set; render();
+      };
+    });
+    window.addEventListener('resize', render);
+  </script>
+</body>
+</html>

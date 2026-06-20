@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>参考资源 · The References</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,500;0,8..60,600;1,8..60,400&family=JetBrains+Mono:wght@400;500&family=Noto+Serif+SC:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="./assets/style.css" />
+  <link rel="stylesheet" href="./assets/resources.css" />
+</head>
+<body>
+
+  <header class="topbar">
+    <div class="brand">
+      <a href="./index.html" class="brand-logo">V</a>
+      <div>
+        <span class="brand-name">参考资源</span>
+        <span class="brand-sub">References</span>
+      </div>
+    </div>
+    <nav class="nav-actions">
+      <a href="./index.html">← 返回图谱</a>
+    </nav>
+  </header>
+
+  <main class="container resources-container">
+    <div class="cover">
+      <div class="cover-eyebrow">A Reading List · 框架与灵感</div>
+      <h1>参考资源<br/><em>The References</em></h1>
+      <p class="cover-lede">
+        实现上述 22 类图表所需的框架、库、教程与灵感来源。
+        从核心框架对比、官方文档,到学术理论书籍、顶会论文、设计灵感网站,
+        方便你做二创时快速定位资源。
+      </p>
+    </div>
+
+    <!-- 一、核心框架对比 -->
+    <section class="res-section">
+      <h2 class="res-h2"><span class="res-num">Ⅰ</span> 核心框架对比</h2>
+      <div class="table-wrap">
+        <table class="res-table">
+          <thead>
+            <tr>
+              <th>框架</th><th>语言</th><th>曲线</th><th>灵活度</th><th>适合场景</th><th>本手册</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td><strong>ECharts</strong></td><td>JS</td><td>中等</td><td>高(声明式)</td><td>商业仪表盘、中文项目</td><td>桑基/箱线/热力/弦</td></tr>
+            <tr><td><strong>D3.js</strong></td><td>JS</td><td>陡峭</td><td>极高</td><td>学术论文、定制可视化</td><td>河流/演化/网络/DTW</td></tr>
+            <tr><td><strong>Plotly</strong></td><td>Python/JS</td><td>中等</td><td>高</td><td>科学计算、Notebook</td><td>降维图</td></tr>
+            <tr><td><strong>Cytoscape.js</strong></td><td>JS</td><td>中等</td><td>高</td><td>图分析、知识图谱</td><td>知识图谱</td></tr>
+            <tr><td><strong>Three.js</strong></td><td>JS</td><td>陡峭</td><td>极高</td><td>3D 可视化、沉浸式</td><td>(二创 3D 方向)</td></tr>
+            <tr><td><strong>Observable Plot</strong></td><td>JS</td><td>中等</td><td>高</td><td>快速原型、探索</td><td>(推荐学习)</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3 class="res-h3">选型建议</h3>
+      <ul class="res-list">
+        <li><strong>快速出商业效果</strong> → ECharts(中文文档最全,内置高级类型最多)</li>
+        <li><strong>学术论文配图</strong> → D3.js(自由度无敌,Observable 上有海量范例)</li>
+        <li><strong>数据科学 / ML</strong> → Plotly + Python(无缝衔接 pandas / sklearn)</li>
+        <li><strong>图理论 / 网络分析</strong> → Cytoscape.js 或 vis-network</li>
+        <li><strong>3D 沉浸式</strong> → Three.js + WebGL</li>
+      </ul>
+    </section>
+
+    <!-- 二、各框架官方资源 -->
+    <section class="res-section">
+      <h2 class="res-h2"><span class="res-num">Ⅱ</span> 各框架官方资源</h2>
+
+      <div class="lib-card">
+        <h3 class="lib-name">ECharts <span class="lib-tag">Apache</span></h3>
+        <ul class="res-links">
+          <li><a href="https://echarts.apache.org" target="_blank">官网 ↗</a></li>
+          <li><a href="https://echarts.apache.org/handbook" target="_blank">使用手册 ↗</a></li>
+          <li><a href="https://echarts.apache.org/examples" target="_blank">示例库(必看)↗</a></li>
+          <li><a href="https://echarts.apache.org/zh/theme-builder.html" target="_blank">主题编辑器 ↗</a></li>
+          <li><a href="https://github.com/apache/echarts" target="_blank">GitHub ↗</a></li>
+        </ul>
+        <p class="lib-note">本手册用到的高级类型:Sankey / Boxplot / Heatmap / ThemeRiver(河流)/ Graph / Chord</p>
+      </div>
+
+      <div class="lib-card">
+        <h3 class="lib-name">D3.js</h3>
+        <ul class="res-links">
+          <li><a href="https://d3js.org" target="_blank">官网 ↗</a></li>
+          <li><a href="https://github.com/d3/d3/blob/main/API.md" target="_blank">API 文档 ↗</a></li>
+          <li><a href="https://observablehq.com/@d3/gallery" target="_blank">Observable Gallery(灵感宝库)↗</a></li>
+          <li><a href="https://www.d3indepth.com" target="_blank">D3 in Depth 教程 ↗</a></li>
+          <li>书籍:《Interactive Data Visualization for the Web》(Scott Murray)</li>
+        </ul>
+        <p class="lib-note">核心模块:<code>d3-scale</code>(比例尺)/ <code>d3-shape</code>(stack/area/arc)/ <code>d3-force</code>(力导向)/ <code>d3-hierarchy</code>(层级)/ <code>d3-zoom</code>(缩放)</p>
+      </div>
+
+      <div class="lib-card">
+        <h3 class="lib-name">Plotly</h3>
+        <ul class="res-links">
+          <li><a href="https://plotly.com" target="_blank">官网 ↗</a></li>
+          <li><a href="https://plotly.com/python" target="_blank">Python 文档 ↗</a></li>
+          <li><a href="https://plotly.com/javascript" target="_blank">JS 文档 ↗</a></li>
+          <li><a href="https://plotly.com/python/plotly-express" target="_blank">Plotly Express(高级 API)↗</a></li>
+          <li><a href="https://github.com/plotly/plotly.js" target="_blank">GitHub ↗</a></li>
+        </ul>
+      </div>
+
+      <div class="lib-card">
+        <h3 class="lib-name">Cytoscape.js</h3>
+        <ul class="res-links">
+          <li><a href="https://js.cytoscape.org" target="_blank">官网 ↗</a></li>
+          <li><a href="https://js.cytoscape.org/#introduction" target="_blank">文档 ↗</a></li>
+          <li><a href="https://js.cytoscape.org/#demos" target="_blank">示例 ↗</a></li>
+          <li><a href="https://js.cytoscape.org/#extensions" target="_blank">扩展(布局/聚类)↗</a></li>
+        </ul>
+      </div>
+
+      <div class="lib-card">
+        <h3 class="lib-name">Three.js</h3>
+        <ul class="res-links">
+          <li><a href="https://threejs.org" target="_blank">官网 ↗</a></li>
+          <li><a href="https://threejs.org/docs" target="_blank">文档 ↗</a></li>
+          <li><a href="https://threejs.org/examples" target="_blank">示例(海量)↗</a></li>
+          <li><a href="https://discoverthreejs.com" target="_blank">教程 ↗</a></li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- 三、进阶生态 -->
+    <section class="res-section">
+      <h2 class="res-h2"><span class="res-num">Ⅲ</span> 进阶生态(组合使用)</h2>
+
+      <h3 class="res-h3">前端工程化封装</h3>
+      <ul class="res-list">
+        <li><strong>Vue</strong>:<code>vue-echarts</code>(ECharts 的 Vue 封装)/ <code>v-charts</code></li>
+        <li><strong>React</strong>:<code>echarts-for-react</code> / <code>react-vis</code> / <code>visx</code>(Airbnb,D3 + React)/ <code>recharts</code></li>
+        <li><strong>推荐架构</strong>:用 D3 做数据计算 + 用 React/Vue 管理组件生命周期和状态</li>
+      </ul>
+
+      <h3 class="res-h3">数据处理</h3>
+      <ul class="res-list">
+        <li><strong>JavaScript</strong>:<code>d3-array</code>(统计)/ <code>d3-dsv</code>(CSV/TSV)/ <code>crossfilter</code>(大数据过滤)</li>
+        <li><strong>Python</strong>:<code>pandas</code> + <code>numpy</code>(预处理)/ <code>scikit-learn</code>(PCA/t-SNE/UMAP)/ <code>umap-learn</code></li>
+      </ul>
+
+      <h3 class="res-h3">地理可视化</h3>
+      <ul class="res-list">
+        <li><strong>Mapbox GL JS</strong>:矢量瓦片,效果最好</li>
+        <li><strong>Deck.gl</strong>:Uber 出品,大数据地理可视化(百万点)</li>
+        <li><strong>kepler.gl</strong>:开箱即用的地理 BI 工具</li>
+      </ul>
+
+      <h3 class="res-h3">大数据可视化</h3>
+      <ul class="res-list">
+        <li><strong>Datashader</strong>(Python):百万级点栅格化</li>
+        <li><strong>ECharts GL</strong>:WebGL 加速版 ECharts</li>
+        <li><strong>Plotly + WebGL</strong>:<code>scattergl</code> 替代 <code>scatter</code></li>
+      </ul>
+    </section>
+
+    <!-- 四、灵感与作品集 -->
+    <section class="res-section">
+      <h2 class="res-h2"><span class="res-num">Ⅳ</span> 灵感与作品集(必收藏)</h2>
+      <div class="inspire-grid">
+        <a class="inspire-card" href="https://pudding.cool" target="_blank">
+          <div class="inspire-name">The Pudding</div>
+          <div class="inspire-desc">数据新闻视觉化标杆</div>
+        </a>
+        <a class="inspire-card" href="https://www.nytimes.com/section/upshot" target="_blank">
+          <div class="inspire-name">NYT Graphics</div>
+          <div class="inspire-desc">新闻图表天花板</div>
+        </a>
+        <a class="inspire-card" href="https://fivethirtyeight.com" target="_blank">
+          <div class="inspire-name">FiveThirtyEight</div>
+          <div class="inspire-desc">政治体育数据可视化</div>
+        </a>
+        <a class="inspire-card" href="https://informationisbeautiful.net" target="_blank">
+          <div class="inspire-name">Information is Beautiful</div>
+          <div class="inspire-desc">David McCandless 作品</div>
+        </a>
+        <a class="inspire-card" href="https://observablehq.com" target="_blank">
+          <div class="inspire-name">Observable</div>
+          <div class="inspire-desc">D3 作者的平台,海量范例</div>
+        </a>
+        <a class="inspire-card" href="http://www.datasketch.es" target="_blank">
+          <div class="inspire-name">Data Sketches</div>
+          <div class="inspire-desc">每月主题可视化挑战</div>
+        </a>
+        <a class="inspire-card" href="https://reddit.com/r/dataisbeautiful" target="_blank">
+          <div class="inspire-name">r/dataisbeautiful</div>
+          <div class="inspire-desc">社区作品交流</div>
+        </a>
+      </div>
+    </section>
+
+    <!-- 五、学术理论 -->
+    <section class="res-section">
+      <h2 class="res-h2"><span class="res-num">Ⅴ</span> 学术理论(打基础必读)</h2>
+
+      <h3 class="res-h3">书籍</h3>
+      <ul class="res-list">
+        <li><strong>《The Visual Display of Quantitative Information》</strong> — Edward Tufte(可视化圣经)</li>
+        <li><strong>《Visualization Analysis and Design》</strong> — Tamara Munzner(系统理论)</li>
+        <li><strong>《Semiology of Graphics》</strong> — Jacques Bertin(图形符号学鼻祖)</li>
+        <li><strong>《Interactive Data Visualization》</strong> — Scott Murray(D3 入门)</li>
+        <li><strong>《数据可视化》</strong> — 陈为(中文,浙江大学)</li>
+      </ul>
+
+      <h3 class="res-h3">论文 / 会议</h3>
+      <ul class="res-list">
+        <li><strong>IEEE VIS</strong> — 可视化顶会,每年最佳论文必读</li>
+        <li><strong>EuroVis</strong> — 欧洲可视化会议</li>
+        <li><strong>CHI</strong> — 人机交互(含可视化交互设计)</li>
+      </ul>
+
+      <h3 class="res-h3">关键论文</h3>
+      <ul class="res-list">
+        <li>Streamgraph:Byron & Wattenberg,<em>"Stacked Graphs — Geometry & Aesthetics"</em>(2008)</li>
+        <li>t-SNE:van der Maaten & Hinton,<em>"Visualizing Data using t-SNE"</em>(2008)</li>
+        <li>UMAP:McInnes et al.,<em>"UMAP: Uniform Manifold Approximation"</em>(2018)</li>
+        <li>DTW:Sakoe & Chiba,<em>"Dynamic programming algorithm optimization for spoken word recognition"</em>(1978)</li>
+      </ul>
+
+      <h3 class="res-h3">在线课程</h3>
+      <ul class="res-list">
+        <li><a href="https://www.edx.org" target="_blank">edX "Data Visualization" ↗</a> — Harvard / UMich 等</li>
+        <li>Coursera "Data Visualization with Tableau"</li>
+        <li><a href="https://observablehq.com/collection/learn-d3" target="_blank">Observable's Learn D3 ↗</a></li>
+      </ul>
+    </section>
+
+    <!-- 六、二创建议 -->
+    <section class="res-section">
+      <h2 class="res-h2"><span class="res-num">Ⅵ</span> 本手册二创建议清单</h2>
+
+      <h3 class="res-h3">高价值二创(容易出彩)</h3>
+      <ol class="res-list ordered">
+        <li><strong>DTW + 时序聚类</strong>:多条时序互相 DTW → 层次聚类热力图(学术性强)</li>
+        <li><strong>降维图 + 原始数据联动</strong>:brush 框选 → 触发右侧原图列表(ML 工程师最爱)</li>
+        <li><strong>知识图谱 + LLM</strong>:自然语言提问 → RAG 抽取子图 → 可视化(当下最热)</li>
+        <li><strong>3D 网络图</strong>:Three.js + 3D 力布局(沉浸式探索大图)</li>
+      </ol>
+
+      <h3 class="res-h3">美学向二创</h3>
+      <ol class="res-list ordered">
+        <li><strong>桑基图动画化</strong>:时间 slider 让流向逐年演化</li>
+        <li><strong>河流图个性化配色</strong>:按情绪着色(绿正/红负)</li>
+        <li><strong>演化时间线叙事模式</strong>:自动滚动 + 镜头聚焦,像纪录片</li>
+      </ol>
+
+      <h3 class="res-h3">工程化封装</h3>
+      <ol class="res-list ordered">
+        <li><strong>Vue/React 组件库</strong>:把 10 张图封装成 <code>&lt;VizSankey :data="..." /&gt;</code> 组件</li>
+        <li><strong>TypeScript 类型化</strong>:为每种图表数据格式定义 interface</li>
+        <li><strong>主题系统</strong>:抽离配色到 CSS variables,支持暗色/亮色切换</li>
+      </ol>
+    </section>
+
+    <!-- 七、CDN 速查 -->
+    <section class="res-section">
+      <h2 class="res-h2"><span class="res-num">Ⅶ</span> CDN 速查(本手册所用)</h2>
+      <pre class="code-block">&lt;!-- ECharts --&gt;
+&lt;script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"&gt;&lt;/script&gt;
+
+&lt;!-- D3.js --&gt;
+&lt;script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"&gt;&lt;/script&gt;
+
+&lt;!-- Plotly --&gt;
+&lt;script src="https://cdn.plot.ly/plotly-2.35.2.min.js"&gt;&lt;/script&gt;
+
+&lt;!-- Cytoscape.js --&gt;
+&lt;script src="https://cdn.jsdelivr.net/npm/cytoscape@3.30.2/dist/cytoscape.min.js"&gt;&lt;/script&gt;
+
+&lt;!-- Three.js --&gt;
+&lt;script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"&gt;&lt;/script&gt;</pre>
+    </section>
+
+    <footer class="res-footer">
+      <p>祝学习愉快。有任何图表想深入,直接告诉我,可基于这些 demo 继续定制。</p>
+      <a href="./index.html" class="btn-primary">← 返回图谱目录</a>
+    </footer>
+  </main>
+
+</body>
+</html>

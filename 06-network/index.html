@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>06 · 网络图 Network Graph</title>
+  <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,wght@0,400;0,500;1,400&family=JetBrains+Mono&family=Noto+Serif+SC:wght@400;500&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --paper: #faf9f6; --paper-soft: #f3f1ea; --paper-card: #ffffff;
+      --ink: #1a1a1a; --ink-2: #3d3d3d; --ink-3: #6b6b6b;
+      --rule: #d8d4c8; --rule-soft: #e8e4d8; --accent: #2c5282; --accent-soft: #ebf0f7;
+      --rust: #9c4221; --ochre: #975a16; --moss: #4a6741;
+      --serif: "Source Serif 4", "Noto Serif SC", Georgia, serif;
+      --sans: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+      --mono: "JetBrains Mono", Consolas, monospace;
+    }
+    body { background: var(--paper); color: var(--ink);
+      font-family: var(--serif); padding: 24px 32px; min-height: 100vh; }
+    h1 { font-family: var(--serif); font-size: 26px; font-weight: 500; letter-spacing: -0.01em; }
+    h1 em { font-style: italic; color: var(--accent); font-weight: 400; }
+    .sub { font-family: var(--sans); color: var(--ink-3); font-size: 13px; margin: 6px 0 18px; line-height: 1.5; }
+    .hint, .info, .mapping { font-family: var(--sans); font-size: 12px; color: var(--ink-3); margin-top: 10px; line-height: 1.6; }
+    .hint code, .mapping code { font-family: var(--mono); background: var(--paper-soft); padding: 1px 6px; border-radius: 2px; color: var(--accent); font-size: 11px; }
+    #chart, #cloud, #cy { border: 1px solid var(--rule); border-radius: 2px; background: var(--paper); }
+    svg { display: block; width: 100%; }
+    .controls { display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; align-items: center; }
+    .controls button, .controls select {
+      font-family: var(--sans); background: var(--paper); border: 1px solid var(--rule); color: var(--ink-2);
+      padding: 6px 14px; border-radius: 2px; cursor: pointer; font-size: 12px; transition: all .15s;
+    }
+    .controls button:hover, .controls select:hover { color: var(--accent); border-color: var(--accent); }
+    .controls button.active { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+    .controls label { color: var(--ink-3); font-family: var(--sans); font-size: 12px; }
+    .legend { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 12px; font-family: var(--sans); font-size: 11px; color: var(--ink-2); }
+    .legend span { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+    .legend i { width: 12px; height: 12px; display: inline-block; }
+    .legend .dot { border-radius: 50%; }
+    .tip { position: fixed; pointer-events: none; opacity: 0;
+      background: #fff; border: 1px solid var(--ink); padding: 10px 14px; border-radius: 2px;
+      font-family: var(--sans); font-size: 12px; max-width: 260px; line-height: 1.6;
+      transition: opacity .12s; box-shadow: 0 4px 16px rgba(0,0,0,0.08); }
+    .node-label, .face-label { font-family: var(--sans); font-size: 11px; fill: var(--ink); }
+    .ridge-label { font-family: var(--sans); font-size: 12px; font-weight: 600; }
+  
+    /* ===== 移动端响应式 ===== */
+    @media (max-width: 768px) {
+      body { padding: 16px 14px; }
+      h1 { font-size: 22px; }
+      .sub { font-size: 12px; margin-bottom: 12px; }
+      .controls { gap: 4px; }
+      .controls button, .controls select { padding: 5px 10px; font-size: 11px; }
+      .controls label { font-size: 11px; }
+      #chart, svg, #cloud, #cy {
+        height: 60vh !important;
+        min-height: 360px !important;
+      }
+      .hint, .info, .mapping, .legend { font-size: 11px; }
+      .legend { gap: 10px; }
+      .node-label, .face-label, .ridge-label { font-size: 10px; }
+    }
+    @media (max-width: 420px) {
+      body { padding: 12px 10px; }
+      h1 { font-size: 20px; }
+      #chart, svg, #cloud, #cy { height: 55vh !important; min-height: 320px !important; }
+    }
+  </style>
+</head>
+<body>
+  <h1>网络图 <em>Network Graph</em></h1>
+  <div class="sub">力导向布局 · 节点拖拽 · 滚轮缩放 · 悬浮高亮邻居</div>
+  <div class="controls">
+    <button class="active" data-set="cite">📄 论文引用</button>
+    <button data-set="social">👥 社交关系</button>
+    <label>斥力:</label>
+    <input type="range" id="charge" min="-800" max="-350" value="-500" />
+    <button id="reheat">🔥 重新布局</button>
+    <span style="color:#6b6b6b;font-size:12px;margin-left:auto">拖动节点 · 滚轮缩放</span>
+  </div>
+  <svg id="chart"></svg>
+  <div class="legend" id="legend"></div>
+  <div class="tip" id="tip"></div>
+
+  <script>
+    const svg = d3.select('#chart');
+    const W = () => svg.node().clientWidth;
+    const H = () => Math.max(500, svg.node().clientHeight);
+
+    // 简单社区发现:同 group 同色
+    const groupColors = ['#2c5282', '#9c4221', '#975a16', '#4a6741', '#6b5d8a', '#2d7a7a'];
+
+    const DATASETS = {
+      cite: {
+        groups: ['机器学习', '计算机视觉', 'NLP'],
+        nodes: [
+          { id: 'ResNet', g: 1 }, { id: 'VGG', g: 1 }, { id: 'AlexNet', g: 1 },
+          { id: 'Transformer', g: 2 }, { id: 'BERT', g: 2 }, { id: 'GPT', g: 2 },
+          { id: 'CNN', g: 0 }, { id: 'RNN', g: 0 }, { id: 'Attention', g: 0 },
+          { id: 'GAN', g: 1 }, { id: 'LSTM', g: 0 }, { id: 'ViT', g: 1 },
+          { id: 'Diffusion', g: 1 }, { id: 'CLIP', g: 1 },
+        ],
+        links: [
+          { s: 'AlexNet', t: 'CNN' }, { s: 'VGG', t: 'CNN' }, { s: 'ResNet', t: 'CNN' },
+          { s: 'ResNet', t: 'VGG' }, { s: 'ViT', t: 'Transformer' }, { s: 'ViT', t: 'ResNet' },
+          { s: 'RNN', t: 'LSTM' }, { s: 'LSTM', t: 'Attention' },
+          { s: 'Attention', t: 'Transformer' }, { s: 'Transformer', t: 'BERT' },
+          { s: 'Transformer', t: 'GPT' }, { s: 'BERT', t: 'GPT' },
+          { s: 'GAN', t: 'CNN' }, { s: 'Diffusion', t: 'GAN' }, { s: 'CLIP', t: 'Transformer' },
+          { s: 'CLIP', t: 'ViT' }, { s: 'Diffusion', t: 'CLIP' },
+        ]
+      },
+      social: {
+        groups: ['家人', '同事', '同学', '朋友'],
+        nodes: [
+          { id: '我', g: 0 }, { id: '爸', g: 0 }, { id: '妈', g: 0 },
+          { id: '张三', g: 1 }, { id: '李四', g: 1 }, { id: '王五', g: 1 },
+          { id: '小明', g: 2 }, { id: '小红', g: 2 }, { id: '小华', g: 2 },
+          { id: '阿强', g: 3 }, { id: '阿珍', g: 3 },
+        ],
+        links: [
+          { s: '我', t: '爸' }, { s: '我', t: '妈' }, { s: '爸', t: '妈' },
+          { s: '我', t: '张三' }, { s: '我', t: '李四' }, { s: '我', t: '王五' },
+          { s: '张三', t: '李四' }, { s: '李四', t: '王五' },
+          { s: '我', t: '小明' }, { s: '我', t: '小红' }, { s: '小明', t: '小红' },
+          { s: '小明', t: '小华' }, { s: '我', t: '阿强' }, { s: '我', t: '阿珍' },
+          { s: '阿强', t: '阿珍' },
+        ]
+      }
+    };
+
+    let simulation, linkSel, nodeSel, labelSel, curSet = 'cite';
+
+    function render(key, chargeStrength = -500) {
+      const d = JSON.parse(JSON.stringify(DATASETS[key]));
+      svg.selectAll('*').remove();
+      const W0 = W(), H0 = H();
+
+      // 计算每个节点度数,用于节点大小
+      const degree = {};
+      d.links.forEach(l => {
+        degree[l.s] = (degree[l.s] || 0) + 1;
+        degree[l.t] = (degree[l.t] || 0) + 1;
+      });
+      d.nodes.forEach(n => { n.degree = degree[n.id] || 1; });
+
+      // 容器组(支持缩放平移)
+      const container = svg.append('g');
+
+      // 连线
+      linkSel = container.append('g')
+        .attr('stroke', '#d8d4c8').attr('stroke-width', 1.2).attr('stroke-opacity', 0.6)
+        .selectAll('line').data(d.links).join('line');
+
+      // 节点
+      nodeSel = container.append('g').selectAll('circle')
+        .data(d.nodes).join('circle')
+        .attr('r', n => 5 + n.degree * 2.5)
+        .attr('fill', n => groupColors[n.g % groupColors.length])
+        .attr('stroke', '#faf9f6').attr('stroke-width', 2)
+        .style('cursor', 'grab');
+
+      // 标签
+      labelSel = container.append('g').selectAll('text')
+        .data(d.nodes).join('text')
+        .attr('class', 'node-label')
+        .attr('text-anchor', 'middle').attr('dy', '0.32em')
+        .style('font-size', n => Math.min(14, 9 + n.degree) + 'px')
+        .text(n => n.id);
+
+      // 力模拟 —— 调优防止节点挤一团
+      // 1. 给节点随机初始位置(避免全堆在原点)
+      d.nodes.forEach(n => {
+        n.x = W0 / 2 + (Math.random() - 0.5) * W0 * 0.7;
+        n.y = H0 / 2 + (Math.random() - 0.5) * H0 * 0.7;
+      });
+
+      simulation = d3.forceSimulation(d.nodes)
+        // 连接力:距离足够,强度适中
+        .force('link', d3.forceLink(d.links).id(n => n.id)
+                .distance(110).strength(0.3)
+                .iterations(2))
+        // 斥力:负值越大排斥越强;distanceMax 限制作用半径避免远距离压缩
+        .force('charge', d3.forceManyBody()
+                .strength(chargeStrength)
+                .distanceMax(400).distanceMin(30))
+        // 碰撞:保证节点不重叠,半径留足余量(含标签宽度)
+        .force('collide', d3.forceCollide()
+                .radius(n => 14 + n.degree * 3 + (n.id.length * 4))
+                .strength(0.9).iterations(3))
+        // 用 x/y 定位力代替 forceCenter(后者会持续往中心拉导致挤压)
+        .force('x', d3.forceX(W0 / 2).strength(0.04))
+        .force('y', d3.forceY(H0 / 2).strength(0.04))
+        .alphaDecay(0.02)
+        .on('tick', () => {
+          linkSel.attr('x1', l => l.source.x).attr('y1', l => l.source.y)
+                 .attr('x2', l => l.target.x).attr('y2', l => l.target.y);
+          nodeSel.attr('cx', n => n.x).attr('cy', n => n.y);
+          labelSel.attr('x', n => n.x).attr('y', n => n.y);
+        });
+
+      // 拖拽
+      const drag = d3.drag()
+        .on('start', (e, n) => { if (!e.active) simulation.alphaTarget(0.3).restart(); n.fx = n.x; n.fy = n.y; })
+        .on('drag', (e, n) => { n.fx = e.x; n.fy = e.y; })
+        .on('end', (e, n) => { if (!e.active) simulation.alphaTarget(0); n.fx = null; n.fy = null; });
+      nodeSel.call(drag);
+
+      // 缩放平移
+      svg.call(d3.zoom().scaleExtent([0.3, 4]).on('zoom', e => container.attr('transform', e.transform)));
+
+      // hover 高亮邻居
+      const tip = d3.select('#tip');
+      const neighbors = id => new Set(d.links.filter(l => l.s === id || l.t === id)
+        .flatMap(l => [l.s === id ? l.t : l.s, l.s === id ? l.s : l.t]));
+
+      nodeSel.on('mouseenter', function(e, n) {
+        const nb = neighbors(n.id); nb.add(n.id);
+        nodeSel.style('opacity', x => nb.has(x.id) ? 1 : 0.15)
+               .attr('stroke', x => x.id === n.id ? '#fff' : '#faf9f6')
+               .attr('stroke-width', x => x.id === n.id ? 3 : 2);
+        linkSel.style('opacity', l => (l.s.id || l.s) === n.id || (l.t.id || l.t) === n.id ? 1 : 0.05)
+               .attr('stroke', l => (l.s.id || l.s) === n.id || (l.t.id || l.t) === n.id ? '#9c4221' : '#d8d4c8')
+               .attr('stroke-width', l => (l.s.id || l.s) === n.id || (l.t.id || l.t) === n.id ? 2 : 1);
+        labelSel.style('opacity', x => nb.has(x.id) ? 1 : 0.2);
+        tip.style('opacity', 1).html(`<b style="color:${groupColors[n.g]}">${n.id}</b><br/>连接数:${n.degree}<br/>组:${d.groups[n.g]}`);
+      })
+      .on('mousemove', e => tip.style('left', (e.clientX + 14) + 'px').style('top', (e.clientY - 40) + 'px'))
+      .on('mouseleave', function() {
+        nodeSel.style('opacity', 1).attr('stroke', '#faf9f6').attr('stroke-width', 2);
+        linkSel.style('opacity', 0.6).attr('stroke', '#d8d4c8').attr('stroke-width', 1.2);
+        labelSel.style('opacity', 1);
+        tip.style('opacity', 0);
+      });
+
+      // 图例
+      const legend = d3.select('#legend'); legend.selectAll('*').remove();
+      d.groups.forEach((gname, i) => {
+        legend.append('span').html(`<i style="background:${groupColors[i]}"></i>${gname}`);
+      });
+    }
+
+    render(curSet);
+    document.querySelectorAll('.controls button[data-set]').forEach(btn => {
+      btn.onclick = () => {
+        document.querySelectorAll('.controls button[data-set]').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active'); curSet = btn.dataset.set;
+        render(curSet, +document.getElementById('charge').value);
+      };
+    });
+    document.getElementById('charge').oninput = function() {
+      render(curSet, +this.value);
+    };
+    document.getElementById('reheat').onclick = () => {
+      if (simulation) simulation.alpha(1).restart();
+    };
+    window.addEventListener('resize', () => render(curSet, +document.getElementById('charge').value));
+  </script>
+</body>
+</html>

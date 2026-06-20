@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>25 · 气泡图 Bubble Chart</title>
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,wght@0,400;0,500;1,400&family=JetBrains+Mono&family=Noto+Serif+SC:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --paper: #faf9f6; --paper-soft: #f3f1ea; --ink: #1a1a1a; --ink-2: #3d3d3d; --ink-3: #6b6b6b;
+      --rule: #d8d4c8; --accent: #2c5282; --rust: #9c4221; --ochre: #975a16; --moss: #4a6741;
+      --serif: "Source Serif 4", "Noto Serif SC", Georgia, serif;
+      --sans: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+    }
+    body { background: var(--paper); color: var(--ink); font-family: var(--serif); padding: 24px 32px; min-height: 100vh; }
+    h1 { font-family: var(--serif); font-size: 26px; font-weight: 500; }
+    h1 em { font-style: italic; color: var(--accent); font-weight: 400; }
+    .sub { font-family: var(--sans); color: var(--ink-3); font-size: 13px; margin: 6px 0 18px; line-height: 1.5; }
+    #chart { width: 100%; height: calc(100vh - 160px); min-height: 500px; border: 1px solid var(--rule); border-radius: 2px; background: var(--paper); }
+    .controls { display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; }
+    .controls button { font-family: var(--sans); background: var(--paper); border: 1px solid var(--rule); color: var(--ink-2); padding: 6px 14px; border-radius: 2px; cursor: pointer; font-size: 12px; transition: all .15s; }
+    .controls button:hover { color: var(--accent); border-color: var(--accent); }
+    .controls button.active { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+    .legend { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 12px; font-family: var(--sans); font-size: 12px; color: var(--ink-2); }
+    .legend span { display: inline-flex; align-items: center; gap: 6px; }
+    .legend i { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
+    @media (max-width: 768px) {
+      body { padding: 16px 14px; } h1 { font-size: 22px; } .sub { font-size: 12px; margin-bottom: 12px; }
+      .controls { gap: 4px; } .controls button { padding: 5px 10px; font-size: 11px; }
+      #chart { height: calc(100vh - 180px) !important; min-height: 380px !important; }
+      .legend { font-size: 11px; gap: 10px; }
+    }
+    @media (max-width: 420px) { body { padding: 12px 10px; } h1 { font-size: 20px; } #chart { height: calc(100vh - 160px) !important; min-height: 340px !important; } }
+  </style>
+</head>
+<body>
+  <h1>气泡图 <em>Bubble Chart</em></h1>
+  <div class="sub">三维散点 · 位置+大小编码三维度 · 经典 Gapminder 风格</div>
+  <div class="controls">
+    <button class="active" data-set="country">🌍 国家发展</button>
+    <button data-set="product">📦 产品矩阵</button>
+    <button data-set="stock">📈 股票投资</button>
+  </div>
+  <div id="chart"></div>
+  <div class="legend" id="legend"></div>
+
+  <script>
+    const chart = echarts.init(document.getElementById('chart'));
+    const palette = ['#2c5282', '#9c4221', '#975a16', '#4a6741', '#6b5d8a'];
+
+    const DATASETS = {
+      country: {
+        title: '各国发展指标 (X=人均GDP, Y=预期寿命, 大小=人口, 色=大洲)',
+        xName: '人均 GDP (千美元)', yName: '预期寿命 (岁)',
+        groups: [
+          { name: '亚洲', items: [
+            ['中国', 12, 78, 1412], ['日本', 40, 84, 125], ['印度', 2.5, 70, 1408], ['韩国', 33, 83, 52], ['印尼', 4.5, 72, 273]
+          ]},
+          { name: '欧洲', items: [
+            ['德国', 46, 81, 83], ['英国', 42, 81, 67], ['法国', 40, 82, 65], ['意大利', 35, 83, 60], ['俄罗斯', 12, 70, 144]
+          ]},
+          { name: '美洲', items: [
+            ['美国', 65, 78, 331], ['巴西', 8, 75, 213], ['加拿大', 52, 82, 38], ['墨西哥', 10, 75, 128]
+          ]},
+          { name: '非洲', items: [
+            ['尼日利亚', 2, 55, 206], ['南非', 6, 65, 59], ['埃及', 4, 72, 102]
+          ]},
+        ]
+      },
+      product: {
+        title: '产品波士顿矩阵 (X=市场份额, Y=增长率, 大小=营收)',
+        xName: '市场份额 (%)', yName: '年增长率 (%)',
+        groups: [
+          { name: '明星', items: [['产品A', 35, 45, 80], ['产品B', 28, 38, 60]] },
+          { name: '现金牛', items: [['产品C', 55, 5, 120], ['产品D', 48, 8, 95]] },
+          { name: '问题', items: [['产品E', 8, 50, 25], ['产品F', 12, 42, 30]] },
+          { name: '瘦狗', items: [['产品G', 6, -5, 18], ['产品H', 4, -8, 12]] },
+        ]
+      },
+      stock: {
+        title: '股票投资矩阵 (X=年化收益, Y=波动率, 大小=市值)',
+        xName: '年化收益 (%)', yName: '波动率 (%)',
+        groups: [
+          { name: '科技', items: [['科技A', 25, 30, 800], ['科技B', 18, 25, 500]] },
+          { name: '消费', items: [['消费C', 10, 12, 600], ['消费D', 8, 10, 450]] },
+          { name: '金融', items: [['金融E', 12, 18, 700], ['金融F', 9, 15, 400]] },
+        ]
+      }
+    };
+
+    function render(key) {
+      const d = DATASETS[key];
+      const series = d.groups.map((grp, gi) => ({
+        name: grp.name,
+        type: 'scatter',
+        data: grp.items.map(it => ({ value: [it[1], it[2], it[3]], name: it[0] })),
+        symbolSize: val => Math.sqrt(val[2]) * 0.8 + 6,
+        itemStyle: { color: palette[gi], opacity: 0.7, borderColor: '#faf9f6', borderWidth: 1.5 },
+        emphasis: { itemStyle: { opacity: 1, borderWidth: 2, shadowBlur: 10, shadowColor: palette[gi] } },
+        label: { show: true, formatter: p => p.data.name, position: 'top', color: '#3d3d3d', fontFamily: 'sans-serif', fontSize: 11 }
+      }));
+
+      chart.setOption({
+        backgroundColor: 'transparent',
+        title: { text: d.title, left: 'center', textStyle: { fontFamily: 'Source Serif 4, serif', fontSize: 13, color: '#6b6b6b', fontWeight: 400 } },
+        tooltip: {
+          formatter: p => `<b>${p.data.name}</b><br/>${d.xName.split('(')[0]}: ${p.value[0]}<br/>${d.yName.split('(')[0]}: ${p.value[1]}<br/>大小维度: ${p.value[2]}`
+        },
+        legend: { bottom: 5, textStyle: { color: '#3d3d3d', fontFamily: 'sans-serif' } },
+        grid: { left: 70, right: 40, top: 70, bottom: 60 },
+        xAxis: { name: d.xName, nameLocation: 'middle', nameGap: 32, nameTextStyle: { color: '#6b6b6b', fontFamily: 'sans-serif', fontSize: 12 }, splitLine: { lineStyle: { color: '#e8e4d8' } }, axisLabel: { color: '#6b6b6b', fontFamily: 'sans-serif' }, axisLine: { lineStyle: { color: '#d8d4c8' } } },
+        yAxis: { name: d.yName, nameLocation: 'middle', nameGap: 50, nameTextStyle: { color: '#6b6b6b', fontFamily: 'sans-serif', fontSize: 12 }, splitLine: { lineStyle: { color: '#e8e4d8' } }, axisLabel: { color: '#6b6b6b', fontFamily: 'sans-serif' }, axisLine: { lineStyle: { color: '#d8d4c8' } } },
+        series
+      }, true);
+    }
+
+    render('country');
+    document.querySelectorAll('.controls button').forEach(btn => {
+      btn.onclick = () => {
+        document.querySelectorAll('.controls button').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active'); render(btn.dataset.set);
+      };
+    });
+    window.addEventListener('resize', () => chart.resize());
+  </script>
+</body>
+</html>

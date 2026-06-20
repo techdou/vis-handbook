@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>26 · 斜率图 Slope Chart</title>
+  <script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,wght@0,400;0,500;1,400&family=JetBrains+Mono&family=Noto+Serif+SC:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --paper: #faf9f6; --ink: #1a1a1a; --ink-2: #3d3d3d; --ink-3: #6b6b6b;
+      --rule: #d8d4c8; --accent: #2c5282; --rust: #9c4221; --moss: #4a6741;
+      --serif: "Source Serif 4", "Noto Serif SC", Georgia, serif;
+      --sans: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+    }
+    body { background: var(--paper); color: var(--ink); font-family: var(--serif); padding: 24px 32px; min-height: 100vh; }
+    h1 { font-family: var(--serif); font-size: 26px; font-weight: 500; }
+    h1 em { font-style: italic; color: var(--accent); font-weight: 400; }
+    .sub { font-family: var(--sans); color: var(--ink-3); font-size: 13px; margin: 6px 0 18px; line-height: 1.5; }
+    svg { display: block; width: 100%; border: 1px solid var(--rule); border-radius: 2px; background: var(--paper); }
+    .controls { display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; }
+    .controls button { font-family: var(--sans); background: var(--paper); border: 1px solid var(--rule); color: var(--ink-2); padding: 6px 14px; border-radius: 2px; cursor: pointer; font-size: 12px; transition: all .15s; }
+    .controls button:hover { color: var(--accent); border-color: var(--accent); }
+    .controls button.active { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+    .legend { display: flex; gap: 18px; flex-wrap: wrap; margin-top: 12px; font-family: var(--sans); font-size: 11px; color: var(--ink-3); }
+    .legend span { display: inline-flex; align-items: center; gap: 6px; }
+    .legend i { width: 18px; height: 2px; display: inline-block; }
+    @media (max-width: 768px) {
+      body { padding: 16px 14px; } h1 { font-size: 22px; } .sub { font-size: 12px; margin-bottom: 12px; }
+      .controls { gap: 4px; } .controls button { padding: 5px 10px; font-size: 11px; }
+      svg { height: calc(100vh - 180px) !important; min-height: 380px !important; }
+      .legend { font-size: 11px; gap: 10px; }
+    }
+    @media (max-width: 420px) { body { padding: 12px 10px; } h1 { font-size: 20px; } svg { height: calc(100vh - 160px) !important; min-height: 340px !important; } }
+  </style>
+</head>
+<body>
+  <h1>斜率图 <em>Slope Chart</em></h1>
+  <div class="sub">极简对比 · 两时间点连线 · 斜率直观展示升降 · Tufte 推崇</div>
+  <div class="controls">
+    <button class="active" data-set="rank">🏆 排名变化</button>
+    <button data-set="income">💰 收入迁移</button>
+    <button data-set="vote">🗳️ 选举对比</button>
+  </div>
+  <svg id="chart"></svg>
+  <div class="legend">
+    <span><i style="background:#4a6741"></i>上升</span>
+    <span><i style="background:#9c4221"></i>下降</span>
+    <span><i style="background:#6b6b6b"></i>持平</span>
+  </div>
+
+  <script>
+    const svgSel = d3.select('#chart');
+    const margin = { top: 50, right: 140, bottom: 50, left: 140 };
+
+    const DATASETS = {
+      rank: {
+        title: '球队赛季排名变化 (2023 → 2024)',
+        leftLabel: '2023 赛季', rightLabel: '2024 赛季',
+        items: [
+          { name: 'A 队', left: 1, right: 3 },
+          { name: 'B 队', left: 5, right: 1 },
+          { name: 'C 队', left: 3, right: 2 },
+          { name: 'D 队', left: 8, right: 4 },
+          { name: 'E 队', left: 2, right: 6 },
+          { name: 'F 队', left: 10, right: 7 },
+          { name: 'G 队', left: 7, right: 9 },
+          { name: 'H 队', left: 4, right: 8 },
+        ]
+      },
+      income: {
+        title: '各行业平均年薪变化 (万 → 万)',
+        leftLabel: '2020 年', rightLabel: '2024 年',
+        items: [
+          { name: '互联网', left: 35, right: 32 },
+          { name: '金融', left: 28, right: 30 },
+          { name: '新能源', left: 18, right: 38 },
+          { name: '教育', left: 22, right: 18 },
+          { name: '医疗', left: 24, right: 28 },
+          { name: '房地产', left: 30, right: 20 },
+          { name: 'AI 算法', left: 32, right: 52 },
+        ]
+      },
+      vote: {
+        title: '两届选举各党派得票率 (%)',
+        leftLabel: '上届', rightLabel: '本届',
+        items: [
+          { name: '甲党', left: 35, right: 28 },
+          { name: '乙党', left: 28, right: 38 },
+          { name: '丙党', left: 22, right: 18 },
+          { name: '丁党', left: 15, right: 16 },
+        ]
+      }
+    };
+
+    let curSet = 'rank';
+
+    function colorOf(item) {
+      if (item.right < item.left) return '#4a6741'; // 数值升 = 绿(排名降)
+      if (item.right > item.left) return '#9c4221'; // 数值降 = 红
+      return '#6b6b6b';
+    }
+
+    function render() {
+      const d = DATASETS[curSet];
+      svgSel.selectAll('*').remove();
+      const W = svgSel.node().clientWidth || 800;
+      const H = Math.max(460, Math.min(600, W * 0.6));
+      svgSel.attr('viewBox', `0 0 ${W} ${H}`).attr('height', H).attr('width', '100%');
+
+      // 排名场景 y 轴反向(1 在上)
+      const isRank = curSet === 'rank';
+      const allVals = d.items.flatMap(it => [it.left, it.right]);
+      const lo = Math.min(...allVals), hi = Math.max(...allVals);
+      const pad = (hi - lo) * 0.08 || 1;
+      const y = d3.scaleLinear()
+        .domain(isRank ? [Math.max(hi + 1, 1), Math.max(lo - 1, 0)] : [lo - pad, hi + pad])
+        .range([margin.top, H - margin.bottom]);
+
+      const x1 = margin.left, x2 = W - margin.right;
+
+      const g = svgSel.append('g');
+
+      // 标题
+      svgSel.append('text').attr('x', W / 2).attr('y', 22).attr('text-anchor', 'middle')
+        .style('fill', '#6b6b6b').style('font-family', 'Source Serif 4, serif').style('font-size', '13px').text(d.title);
+
+      // 两条竖轴线
+      [x1, x2].forEach(xx => {
+        g.append('line').attr('x1', xx).attr('x2', xx).attr('y1', margin.top).attr('y2', H - margin.bottom)
+          .attr('stroke', '#1a1a1a').attr('stroke-width', 1.5);
+      });
+
+      // 时刻标签
+      g.append('text').attr('x', x1).attr('y', margin.top - 14).attr('text-anchor', 'middle')
+        .style('fill', '#1a1a1a').style('font-family', 'sans-serif').style('font-size', '13px').style('font-weight', '600').text(d.leftLabel);
+      g.append('text').attr('x', x2).attr('y', margin.top - 14).attr('text-anchor', 'middle')
+        .style('fill', '#1a1a1a').style('font-family', 'sans-serif').style('font-size', '13px').style('font-weight', '600').text(d.rightLabel);
+
+      // 斜率线
+      const lines = g.append('g').selectAll('g')
+        .data(d.items)
+        .join('g')
+        .style('cursor', 'pointer');
+
+      lines.append('line')
+        .attr('x1', x1).attr('x2', x2)
+        .attr('y1', it => y(it.left)).attr('y2', it => y(it.right))
+        .attr('stroke', colorOf).attr('stroke-width', 2.5).attr('stroke-opacity', 0.7);
+
+      // 左右端点
+      [x1, x2].forEach((xx, side) => {
+        lines.append('circle')
+          .attr('cx', xx).attr('cy', it => y(side === 0 ? it.left : it.right)).attr('r', 4)
+          .attr('fill', colorOf).attr('stroke', '#faf9f6').attr('stroke-width', 1.5);
+      });
+
+      // 左标签(名称+值)
+      lines.append('text').attr('x', x1 - 12).attr('y', it => y(it.left))
+        .attr('text-anchor', 'end').attr('dy', '0.32em')
+        .style('fill', '#1a1a1a').style('font-family', 'sans-serif').style('font-size', '12px')
+        .text(it => `${it.name}  ${it.left}`);
+      // 右标签
+      lines.append('text').attr('x', x2 + 12).attr('y', it => y(it.right))
+        .attr('text-anchor', 'start').attr('dy', '0.32em')
+        .style('fill', '#1a1a1a').style('font-family', 'sans-serif').style('font-size', '12px')
+        .text(it => `${it.right}  ${it.name}`);
+
+      // hover 高亮
+      lines.on('mouseenter', function() {
+        svgSel.selectAll('g > g line').attr('stroke-opacity', 0.1);
+        d3.select(this).select('line').attr('stroke-opacity', 1).attr('stroke-width', 4);
+      }).on('mouseleave', function() {
+        svgSel.selectAll('g > g line').attr('stroke-opacity', 0.7).attr('stroke-width', 2.5);
+      });
+    }
+
+    render();
+    document.querySelectorAll('.controls button').forEach(btn => {
+      btn.onclick = () => {
+        document.querySelectorAll('.controls button').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active'); curSet = btn.dataset.set; render();
+      };
+    });
+    window.addEventListener('resize', render);
+  </script>
+</body>
+</html>

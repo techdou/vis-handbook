@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>13 · 山脊图 Ridgeline</title>
+  <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,wght@0,400;0,500;1,400&family=JetBrains+Mono&family=Noto+Serif+SC:wght@400;500&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --paper: #faf9f6; --paper-soft: #f3f1ea; --paper-card: #ffffff;
+      --ink: #1a1a1a; --ink-2: #3d3d3d; --ink-3: #6b6b6b;
+      --rule: #d8d4c8; --rule-soft: #e8e4d8; --accent: #2c5282; --accent-soft: #ebf0f7;
+      --rust: #9c4221; --ochre: #975a16; --moss: #4a6741;
+      --serif: "Source Serif 4", "Noto Serif SC", Georgia, serif;
+      --sans: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+      --mono: "JetBrains Mono", Consolas, monospace;
+    }
+    body { background: var(--paper); color: var(--ink);
+      font-family: var(--serif); padding: 24px 32px; min-height: 100vh; }
+    h1 { font-family: var(--serif); font-size: 26px; font-weight: 500; letter-spacing: -0.01em; }
+    h1 em { font-style: italic; color: var(--accent); font-weight: 400; }
+    .sub { font-family: var(--sans); color: var(--ink-3); font-size: 13px; margin: 6px 0 18px; line-height: 1.5; }
+    .hint, .info, .mapping { font-family: var(--sans); font-size: 12px; color: var(--ink-3); margin-top: 10px; line-height: 1.6; }
+    .hint code, .mapping code { font-family: var(--mono); background: var(--paper-soft); padding: 1px 6px; border-radius: 2px; color: var(--accent); font-size: 11px; }
+    #chart, #cloud, #cy { border: 1px solid var(--rule); border-radius: 2px; background: var(--paper); }
+    svg { display: block; width: 100%; }
+    .controls { display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; align-items: center; }
+    .controls button, .controls select {
+      font-family: var(--sans); background: var(--paper); border: 1px solid var(--rule); color: var(--ink-2);
+      padding: 6px 14px; border-radius: 2px; cursor: pointer; font-size: 12px; transition: all .15s;
+    }
+    .controls button:hover, .controls select:hover { color: var(--accent); border-color: var(--accent); }
+    .controls button.active { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+    .controls label { color: var(--ink-3); font-family: var(--sans); font-size: 12px; }
+    .legend { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 12px; font-family: var(--sans); font-size: 11px; color: var(--ink-2); }
+    .legend span { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+    .legend i { width: 12px; height: 12px; display: inline-block; }
+    .legend .dot { border-radius: 50%; }
+    .tip { position: fixed; pointer-events: none; opacity: 0;
+      background: #fff; border: 1px solid var(--ink); padding: 10px 14px; border-radius: 2px;
+      font-family: var(--sans); font-size: 12px; max-width: 260px; line-height: 1.6;
+      transition: opacity .12s; box-shadow: 0 4px 16px rgba(0,0,0,0.08); }
+    .node-label, .face-label { font-family: var(--sans); font-size: 11px; fill: var(--ink); }
+    .ridge-label { font-family: var(--sans); font-size: 12px; font-weight: 600; }
+  
+    /* ===== 移动端响应式 ===== */
+    @media (max-width: 768px) {
+      body { padding: 16px 14px; }
+      h1 { font-size: 22px; }
+      .sub { font-size: 12px; margin-bottom: 12px; }
+      .controls { gap: 4px; }
+      .controls button, .controls select { padding: 5px 10px; font-size: 11px; }
+      .controls label { font-size: 11px; }
+      #chart, svg, #cloud, #cy {
+        height: 60vh !important;
+        min-height: 360px !important;
+      }
+      .hint, .info, .mapping, .legend { font-size: 11px; }
+      .legend { gap: 10px; }
+      .node-label, .face-label, .ridge-label { font-size: 10px; }
+    }
+    @media (max-width: 420px) {
+      body { padding: 12px 10px; }
+      h1 { font-size: 20px; }
+      #chart, svg, #cloud, #cy { height: 55vh !important; min-height: 320px !important; }
+    }
+  </style>
+</head>
+<body>
+  <h1>山脊图 <em>Ridgeline / Joy Plot</em></h1>
+  <div class="sub">多分布叠放 · 核密度估计(KDE) · 直观对比分布演化</div>
+  <div class="controls">
+    <button class="active" data-set="temp">🌡️ 月度气温</button>
+    <button data-set="salary">💰 职级薪资</button>
+    <button data-set="vote">🗳️ 年龄投票</button>
+    <label>重叠度:</label>
+    <input type="range" id="overlap" min="0.3" max="1" step="0.05" value="0.8" />
+  </div>
+  <svg id="chart"></svg>
+
+  <script>
+    const svg = d3.select('#chart');
+    const margin = { top: 30, right: 40, bottom: 40, left: 90 };
+
+    // 核密度估计
+    function kde(kernel, thresholds, data) {
+      return thresholds.map(t => [t, d3.mean(data, d => kernel(t - d))]);
+    }
+    function epanechnikov(bandwidth) {
+      return x => Math.abs(x /= bandwidth) <= 1 ? 0.75 * (1 - x * x) / bandwidth : 0;
+    }
+
+    // 生成正态分布数据
+    function normal(mu, sigma, n) {
+      const out = [];
+      for (let i = 0; i < n; i++) {
+        const u1 = Math.random(), u2 = Math.random();
+        const z = Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
+        out.push(mu + z * sigma);
+      }
+      return out;
+    }
+
+    const DATASETS = {
+      temp: {
+        title: '某城市月度气温分布 (°C)',
+        groups: [
+          { name: '一月', data: normal(3, 4, 100) },
+          { name: '二月', data: normal(5, 4, 100) },
+          { name: '三月', data: normal(10, 5, 100) },
+          { name: '四月', data: normal(16, 5, 100) },
+          { name: '五月', data: normal(22, 5, 100) },
+          { name: '六月', data: normal(27, 4, 100) },
+          { name: '七月', data: normal(30, 3, 100) },
+          { name: '八月', data: normal(29, 3, 100) },
+          { name: '九月', data: normal(24, 4, 100) },
+          { name: '十月', data: normal(17, 5, 100) },
+          { name: '十一月', data: normal(10, 5, 100) },
+          { name: '十二月', data: normal(4, 4, 100) },
+        ]
+      },
+      salary: {
+        title: '不同职级月薪分布 (千元)',
+        groups: [
+          { name: '初级', data: normal(12, 2.5, 150) },
+          { name: '中级', data: normal(20, 4, 150) },
+          { name: '高级', data: normal(32, 6, 150) },
+          { name: '专家', data: normal(48, 9, 150) },
+          { name: '资深专家', data: normal(70, 14, 150) },
+        ]
+      },
+      vote: {
+        title: '各年龄段政治倾向分布 (-3 激进 ~ +3 保守)',
+        groups: [
+          { name: '18-25', data: normal(-1.5, 1.2, 200) },
+          { name: '26-35', data: normal(-0.5, 1.3, 200) },
+          { name: '36-45', data: normal(0.2, 1.4, 200) },
+          { name: '46-55', data: normal(0.8, 1.3, 200) },
+          { name: '56-65', data: normal(1.4, 1.2, 200) },
+          { name: '65+', data: normal(2, 1.1, 200) },
+        ]
+      }
+    };
+
+    const palette = ['#2c5282', '#9c4221', '#975a16', '#4a6741', '#6b5d8a', '#2d7a7a', '#8a5a2b', '#3d5a80'];
+
+    let curSet = 'temp', curOverlap = 0.8;
+
+    function render() {
+      const d = DATASETS[curSet];
+      svg.selectAll('*').remove();
+      const W = svg.node().clientWidth;
+      const H = Math.max(540, svg.node().clientHeight);
+
+      const allValues = d.groups.flatMap(g => g.data);
+      const x = d3.scaleLinear()
+        .domain(d3.extent(allValues)).nice()
+        .range([margin.left, W - margin.right]);
+
+      const bandwidth = (x.domain()[1] - x.domain()[0]) / 40;
+      const thresholds = x.ticks(80);
+
+      // 算每组 KDE
+      const densities = d.groups.map(g => ({
+        name: g.name,
+        density: kde(epanechnikov(bandwidth), thresholds, g.data)
+      }));
+
+      const maxDensity = d3.max(densities, d => d3.max(d.density, dd => dd[1]));
+      const yScale = d3.scaleLinear().domain([0, maxDensity]).range([0, (H - margin.top - margin.bottom) / d.groups.length * curOverlap * 1.5]);
+
+      // 每组的垂直位置
+      const n = d.groups.length;
+      const rowH = (H - margin.top - margin.bottom) / n;
+
+      const g = svg.append('g');
+
+      densities.forEach((grp, i) => {
+        const yOffset = margin.top + (n - 1 - i) * rowH; // 从下往上排
+        const color = palette[i % palette.length];
+
+        const area = d3.area()
+          .x(dd => x(dd[0]))
+          .y0(yOffset)
+          .y1(dd => yOffset - yScale(dd[1]))
+          .curve(d3.curveCatmullRom);
+
+        // 渐变
+        const gid = `grad${i}`;
+        const defs = svg.append('defs');
+        const lg = defs.append('linearGradient').attr('id', gid).attr('x1', 0).attr('y1', 1).attr('x2', 0).attr('y2', 0);
+        lg.append('stop').attr('offset', '0%').attr('stop-color', color).attr('stop-opacity', 0.15);
+        lg.append('stop').attr('offset', '100%').attr('stop-color', color).attr('stop-opacity', 0.75);
+
+        g.append('path')
+          .datum(grp.density)
+          .attr('fill', `url(#${gid})`)
+          .attr('stroke', color)
+          .attr('stroke-width', 2)
+          .attr('d', area)
+          .style('filter', 'drop-shadow(0 2px 6px rgba(0,0,0,0.4))');
+
+        // 组标签
+        g.append('text')
+          .attr('class', 'ridge-label')
+          .attr('x', margin.left - 12)
+          .attr('y', yOffset - 4)
+          .attr('text-anchor', 'end')
+          .style('fill', color)
+          .text(grp.name);
+
+        // 均值竖线
+        const vals = d.groups[i].data;
+        const mean = d3.mean(vals);
+        g.append('line')
+          .attr('x1', x(mean)).attr('x2', x(mean))
+          .attr('y1', yOffset - 2).attr('y2', yOffset - 12)
+          .attr('stroke', '#fff').attr('stroke-width', 1.5).attr('opacity', 0.7);
+      });
+
+      // X 轴
+      g.append('g')
+        .attr('transform', `translate(0,${H - margin.bottom})`)
+        .call(d3.axisBottom(x).ticks(8))
+        .call(ax => ax.select('.domain').remove())
+        .selectAll('text').style('fill', '#6b6b6b');
+
+      svg.selectAll('.tick line').attr('stroke', '#f3f1ea');
+
+      // 标题
+      svg.append('text')
+        .attr('x', W / 2).attr('y', 18).attr('text-anchor', 'middle')
+        .style('fill', '#6b6b6b').style('font-size', '13px')
+        .text(d.title);
+    }
+
+    render();
+    document.querySelectorAll('.controls button[data-set]').forEach(btn => {
+      btn.onclick = () => {
+        document.querySelectorAll('.controls button[data-set]').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active'); curSet = btn.dataset.set; render();
+      };
+    });
+    document.getElementById('overlap').oninput = function() {
+      curOverlap = +this.value; render();
+    };
+    window.addEventListener('resize', render);
+  </script>
+</body>
+</html>

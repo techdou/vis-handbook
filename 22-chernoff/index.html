@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>22 · 切尔诺夫脸 Chernoff Faces</title>
+  <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,wght@0,400;0,500;1,400&family=JetBrains+Mono&family=Noto+Serif+SC:wght@400;500&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --paper: #faf9f6; --paper-soft: #f3f1ea; --paper-card: #ffffff;
+      --ink: #1a1a1a; --ink-2: #3d3d3d; --ink-3: #6b6b6b;
+      --rule: #d8d4c8; --rule-soft: #e8e4d8; --accent: #2c5282; --accent-soft: #ebf0f7;
+      --rust: #9c4221; --ochre: #975a16; --moss: #4a6741;
+      --serif: "Source Serif 4", "Noto Serif SC", Georgia, serif;
+      --sans: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+      --mono: "JetBrains Mono", Consolas, monospace;
+    }
+    body { background: var(--paper); color: var(--ink);
+      font-family: var(--serif); padding: 24px 32px; min-height: 100vh; }
+    h1 { font-family: var(--serif); font-size: 26px; font-weight: 500; letter-spacing: -0.01em; }
+    h1 em { font-style: italic; color: var(--accent); font-weight: 400; }
+    .sub { font-family: var(--sans); color: var(--ink-3); font-size: 13px; margin: 6px 0 18px; line-height: 1.5; }
+    .hint, .info, .mapping { font-family: var(--sans); font-size: 12px; color: var(--ink-3); margin-top: 10px; line-height: 1.6; }
+    .hint code, .mapping code { font-family: var(--mono); background: var(--paper-soft); padding: 1px 6px; border-radius: 2px; color: var(--accent); font-size: 11px; }
+    #chart, #cloud, #cy { border: 1px solid var(--rule); border-radius: 2px; background: var(--paper); }
+    svg { display: block; width: 100%; }
+    .controls { display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; align-items: center; }
+    .controls button, .controls select {
+      font-family: var(--sans); background: var(--paper); border: 1px solid var(--rule); color: var(--ink-2);
+      padding: 6px 14px; border-radius: 2px; cursor: pointer; font-size: 12px; transition: all .15s;
+    }
+    .controls button:hover, .controls select:hover { color: var(--accent); border-color: var(--accent); }
+    .controls button.active { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+    .controls label { color: var(--ink-3); font-family: var(--sans); font-size: 12px; }
+    .legend { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 12px; font-family: var(--sans); font-size: 11px; color: var(--ink-2); }
+    .legend span { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+    .legend i { width: 12px; height: 12px; display: inline-block; }
+    .legend .dot { border-radius: 50%; }
+    .tip { position: fixed; pointer-events: none; opacity: 0;
+      background: #fff; border: 1px solid var(--ink); padding: 10px 14px; border-radius: 2px;
+      font-family: var(--sans); font-size: 12px; max-width: 260px; line-height: 1.6;
+      transition: opacity .12s; box-shadow: 0 4px 16px rgba(0,0,0,0.08); }
+    .node-label, .face-label { font-family: var(--sans); font-size: 11px; fill: var(--ink); }
+    .ridge-label { font-family: var(--sans); font-size: 12px; font-weight: 600; }
+  
+    /* ===== 移动端响应式 ===== */
+    @media (max-width: 768px) {
+      body { padding: 16px 14px; }
+      h1 { font-size: 22px; }
+      .sub { font-size: 12px; margin-bottom: 12px; }
+      .controls { gap: 4px; }
+      .controls button, .controls select { padding: 5px 10px; font-size: 11px; }
+      .controls label { font-size: 11px; }
+      #chart, svg, #cloud, #cy {
+        height: 60vh !important;
+        min-height: 360px !important;
+      }
+      .hint, .info, .mapping, .legend { font-size: 11px; }
+      .legend { gap: 10px; }
+      .node-label, .face-label, .ridge-label { font-size: 10px; }
+    }
+    @media (max-width: 420px) {
+      body { padding: 12px 10px; }
+      h1 { font-size: 20px; }
+      #chart, svg, #cloud, #cy { height: 55vh !important; min-height: 320px !important; }
+    }
+  </style>
+</head>
+<body>
+  <h1>切尔诺夫脸 <em>Chernoff Faces</em></h1>
+  <div class="sub">多维数据拟人化 · 5 维映射到五官 · 利用人脸直觉识别异常 · 趣味可视化经典</div>
+  <div class="controls">
+    <button class="active" data-set="city">🌆 城市画像</button>
+    <button data-set="team">⚽ 球队数据</button>
+    <button data-set="stock">📈 股票对比</button>
+  </div>
+  <svg id="chart"></svg>
+  <div class="mapping">
+    <b>维度映射:</b>
+    <code>脸宽</code>=维度1 · <code>脸高</code>=维度2 · <code>眼大小</code>=维度3 ·
+    <code>嘴弯曲</code>=维度4(↑笑/↓哭) · <code>眉毛角度</code>=维度5(↗积极/↘消极)
+  </div>
+  <div class="tip" id="tip"></div>
+
+  <script>
+    const svg = d3.select('#chart');
+
+    // 数据:每个对象 5 个归一化维度(0-1)
+    const DATASETS = {
+      city: {
+        title: '中国主要城市多维画像(房价/收入/空气/幸福度/拥堵)',
+        dims: ['房价', '收入', '空气', '幸福度', '拥堵(反向)'],
+        items: [
+          { name: '北京', v: [0.95, 0.85, 0.30, 0.60, 0.20] },
+          { name: '上海', v: [0.90, 0.88, 0.40, 0.65, 0.25] },
+          { name: '深圳', v: [0.80, 0.82, 0.55, 0.70, 0.30] },
+          { name: '广州', v: [0.60, 0.75, 0.60, 0.72, 0.40] },
+          { name: '杭州', v: [0.70, 0.78, 0.70, 0.80, 0.50] },
+          { name: '成都', v: [0.45, 0.65, 0.75, 0.85, 0.65] },
+          { name: '西安', v: [0.40, 0.60, 0.65, 0.78, 0.55] },
+          { name: '昆明', v: [0.38, 0.55, 0.95, 0.88, 0.75] },
+        ]
+      },
+      team: {
+        title: '球队赛季画像(进攻/防守/控球/积分/球迷)',
+        dims: ['进攻', '防守', '控球', '积分', '球迷支持'],
+        items: [
+          { name: 'A 队', v: [0.92, 0.85, 0.88, 0.95, 0.90] },
+          { name: 'B 队', v: [0.85, 0.70, 0.75, 0.80, 0.65] },
+          { name: 'C 队', v: [0.60, 0.90, 0.50, 0.70, 0.55] },
+          { name: 'D 队', v: [0.40, 0.45, 0.35, 0.30, 0.40] },
+          { name: 'E 队', v: [0.75, 0.55, 0.80, 0.65, 0.75] },
+          { name: 'F 队', v: [0.50, 0.50, 0.45, 0.45, 0.50] },
+        ]
+      },
+      stock: {
+        title: '股票对比(收益/波动/PE/ROE/增长)',
+        dims: ['收益', '波动(反向)', 'PE 合理', 'ROE', '增长'],
+        items: [
+          { name: '科技股A', v: [0.90, 0.30, 0.40, 0.85, 0.92] },
+          { name: '消费股B', v: [0.65, 0.80, 0.70, 0.60, 0.50] },
+          { name: '金融股C', v: [0.55, 0.85, 0.85, 0.75, 0.30] },
+          { name: '能源股D', v: [0.40, 0.50, 0.60, 0.45, 0.25] },
+          { name: '医药股E', v: [0.70, 0.65, 0.55, 0.70, 0.75] },
+          { name: '新能源F', v: [0.85, 0.25, 0.35, 0.50, 0.95] },
+        ]
+      }
+    };
+
+    const tip = d3.select('#tip');
+
+    // 绘制单张脸:v=[脸宽, 脸高, 眼大小, 嘴弯曲, 眉毛角度]
+    function drawFace(g, v) {
+      const [fw, fh, eye, mouth, brow] = v;
+      const faceW = 28 + fw * 22;       // 28-50
+      const faceH = 35 + fh * 25;       // 35-60
+      const eyeR = 1.5 + eye * 4;       // 1.5-5.5
+      const mouthCurve = (mouth - 0.5) * 20;  // -10 ~ +10
+      const browAngle = (brow - 0.5) * 0.8;   // -0.4 ~ +0.4 弧度
+
+      // 情绪色:综合分高=暖色,低=冷色
+      const mood = (eye + mouth + brow) / 3;
+      const color = d3.interpolateRgb('#2c5282', '#975a16')(mood);
+
+      // 脸(椭圆)
+      g.append('ellipse')
+        .attr('cx', 0).attr('cy', 0)
+        .attr('rx', faceW).attr('ry', faceH)
+        .attr('fill', color).attr('fill-opacity', 0.25)
+        .attr('stroke', color).attr('stroke-width', 2.5);
+
+      // 眉毛(左)
+      const browY = -faceH * 0.45;
+      const browW = faceW * 0.35;
+      g.append('line')
+        .attr('x1', -faceW * 0.55).attr('y1', browY + browW * Math.tan(browAngle) / 2)
+        .attr('x2', -faceW * 0.2).attr('y2', browY - browW * Math.tan(browAngle) / 2)
+        .attr('stroke', color).attr('stroke-width', 3).attr('stroke-linecap', 'round');
+      // 眉毛(右)
+      g.append('line')
+        .attr('x1', faceW * 0.2).attr('y2', browY - browW * Math.tan(browAngle) / 2)
+        .attr('x2', faceW * 0.55).attr('y2', browY + browW * Math.tan(browAngle) / 2)
+        .attr('stroke', color).attr('stroke-width', 3).attr('stroke-linecap', 'round');
+
+      // 眼睛
+      const eyeY = -faceH * 0.2;
+      g.append('circle').attr('cx', -faceW * 0.35).attr('cy', eyeY).attr('r', eyeR).attr('fill', color);
+      g.append('circle').attr('cx', faceW * 0.35).attr('cy', eyeY).attr('r', eyeR).attr('fill', color);
+
+      // 鼻子
+      const noseY = faceH * 0.1;
+      g.append('path')
+        .attr('d', `M 0 ${noseY - 8} Q -4 ${noseY} 0 ${noseY + 6} Q 4 ${noseY} 0 ${noseY - 8}`)
+        .attr('fill', 'none').attr('stroke', color).attr('stroke-width', 1.5);
+
+      // 嘴(曲线)
+      const mouthY = faceH * 0.5;
+      g.append('path')
+        .attr('d', `M ${-faceW * 0.35} ${mouthY} Q 0 ${mouthY + mouthCurve} ${faceW * 0.35} ${mouthY}`)
+        .attr('fill', 'none').attr('stroke', color).attr('stroke-width', 2.5).attr('stroke-linecap', 'round');
+    }
+
+    function render(key) {
+      const d = DATASETS[key];
+      svg.selectAll('*').remove();
+      const W = svg.node().clientWidth;
+      const H = Math.max(540, svg.node().clientHeight);
+
+      // 网格布局
+      const cols = Math.min(4, Math.ceil(Math.sqrt(d.items.length * 1.3)));
+      const rows = Math.ceil(d.items.length / cols);
+      const cellW = W / cols, cellH = (H - 40) / rows;
+
+      const g = svg.append('g');
+
+      d.items.forEach((item, i) => {
+        const col = i % cols, row = Math.floor(i / cols);
+        const cx = col * cellW + cellW / 2;
+        const cy = row * cellH + cellH / 2;
+
+        const faceG = g.append('g')
+          .attr('transform', `translate(${cx},${cy})`)
+          .style('cursor', 'pointer');
+
+        drawFace(faceG, item.v);
+
+        // 名称标签
+        faceG.append('text')
+          .attr('class', 'face-label')
+          .attr('y', 75).attr('text-anchor', 'middle')
+          .style('fill', '#1a1a1a')
+          .text(item.name);
+
+        // hover 显示维度详情
+        faceG.on('mouseenter', function(e) {
+          d3.select(this).select('ellipse').attr('stroke-width', 4);
+          const mood = ((item.v[2] + item.v[3] + item.v[4]) / 3 * 100).toFixed(0);
+          tip.style('opacity', 1).html(
+            `<b style="color:#975a16">${item.name}</b><br/>` +
+            d.dims.map((dim, di) => `${dim}: <b style="color:#9c4221">${(item.v[di] * 100).toFixed(0)}</b>`).join('<br/>') +
+            `<br/><span style="color:#6b6b6b">综合情绪: ${mood}%</span>`
+          );
+        })
+        .on('mousemove', e => tip.style('left', (e.clientX + 14) + 'px').style('top', (e.clientY + 14) + 'px'))
+        .on('mouseleave', function() {
+          d3.select(this).select('ellipse').attr('stroke-width', 2.5);
+          tip.style('opacity', 0);
+        });
+      });
+
+      // 标题
+      svg.append('text').attr('x', W / 2).attr('y', 22).attr('text-anchor', 'middle')
+        .style('fill', '#6b6b6b').style('font-size', '13px').text(d.title);
+    }
+
+    render('city');
+    document.querySelectorAll('.controls button').forEach(btn => {
+      btn.onclick = () => {
+        document.querySelectorAll('.controls button').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active'); render(btn.dataset.set);
+      };
+    });
+    window.addEventListener('resize', () => {
+      const active = document.querySelector('.controls button.active');
+      if (active) render(active.dataset.set);
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>02 · 箱线图 Boxplot</title>
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --paper: #faf9f6; --ink: #1a1a1a; --ink-2: #3d3d3d; --ink-3: #6b6b6b;
+      --rule: #d8d4c8; --accent: #2c5282; --rust: #9c4221;
+      --serif: "Source Serif 4", "Noto Serif SC", Georgia, serif;
+      --sans: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    }
+    body { background: var(--paper); color: var(--ink);
+      font-family: var(--serif); padding: 24px 32px; min-height: 100vh; }
+    h1 { font-family: var(--serif); font-size: 26px; font-weight: 500; }
+    h1 em { font-style: italic; color: var(--accent); font-weight: 400; }
+    .sub { font-family: var(--sans); color: var(--ink-3); font-size: 13px; margin: 6px 0 18px; }
+    #chart { width: 100%; height: calc(100vh - 150px); min-height: 480px; }
+    .controls { display: flex; gap: 6px; margin-bottom: 10px; flex-wrap: wrap; }
+    .controls button {
+      font-family: var(--sans); background: var(--paper); border: 1px solid var(--rule); color: var(--ink-2);
+      padding: 6px 14px; border-radius: 2px; cursor: pointer; font-size: 12px; transition: all .15s;
+    }
+    .controls button:hover { color: var(--accent); border-color: var(--accent); }
+    .controls button.active { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+    .legend { font-family: var(--sans); font-size: 11px; color: var(--ink-3); margin-top: 10px; line-height: 1.7; }
+    .legend b { font-weight: 500; }
+  
+    /* ===== 移动端响应式 ===== */
+    @media (max-width: 768px) {
+      body { padding: 16px 14px; }
+      h1 { font-size: 22px; }
+      .sub { font-size: 12px; margin-bottom: 12px; }
+      .controls { gap: 4px; }
+      .controls button, .controls select { padding: 5px 10px; font-size: 11px; }
+      .controls label { font-size: 11px; }
+      #chart, svg, #cloud, #cy {
+        height: 60vh !important;
+        min-height: 360px !important;
+      }
+      .hint, .info, .mapping, .legend { font-size: 11px; }
+      .legend { gap: 10px; }
+      .node-label, .face-label, .ridge-label { font-size: 10px; }
+    }
+    @media (max-width: 420px) {
+      body { padding: 12px 10px; }
+      h1 { font-size: 20px; }
+      #chart, svg, #cloud, #cy { height: 55vh !important; min-height: 320px !important; }
+    }
+  </style>
+</head>
+<body>
+  <h1>箱线图 <em>Boxplot</em></h1>
+  <div class="sub">分布对比 · 盒子=IQR · 须=1.5×IQR · 散点=离群值</div>
+  <div class="controls">
+    <button class="active" data-set="salary">💰 各城市薪资</button>
+    <button data-set="exam">📚 考试成绩</button>
+    <button data-set="ab">🧪 A/B 测试</button>
+  </div>
+  <div id="chart"></div>
+  <div class="legend">
+    解读:盒子上下边为 <b style="color:#2c5282">Q3 / Q1</b>,中间线为 <b style="color:#975a16">中位数</b>,
+    须延伸到 1.5×IQR 范围,<b style="color:#9c4221">散点</b>是离群值。盒子越扁=分布越集中。
+  </div>
+
+  <script>
+    const chart = echarts.init(document.getElementById('chart'));
+
+    // 用 Boxplot 内置 dataTools 计算五数,这里直接给原始数据让 ECharts 算
+    function genBoxData(rawGroups) {
+      // ECharts 的 boxplot 需要预先计算 [min, Q1, median, Q3, max]
+      return rawGroups.map(arr => {
+        const sorted = [...arr].sort((a, b) => a - b);
+        const q = p => {
+          const idx = (sorted.length - 1) * p;
+          const lo = Math.floor(idx), hi = Math.ceil(idx);
+          return sorted[lo] + (sorted[hi] - sorted[lo]) * (idx - lo);
+        };
+        const Q1 = q(0.25), Q3 = q(0.75), IQR = Q3 - Q1;
+        const min = Math.max(sorted[0], Q1 - 1.5 * IQR);
+        const max = Math.min(sorted[sorted.length - 1], Q3 + 1.5 * IQR);
+        const outliers = sorted.filter(v => v < Q1 - 1.5 * IQR || v > Q3 + 1.5 * IQR);
+        return { box: [min, Q1, q(0.5), Q3, max], outliers };
+      });
+    }
+
+    function randn(mu, sigma, n) {
+      const out = [];
+      for (let i = 0; i < n; i++) {
+        // Box-Muller
+        const u1 = Math.random(), u2 = Math.random();
+        const z = Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
+        out.push(Math.round(mu + z * sigma));
+      }
+      return out;
+    }
+
+    const DATASETS = {
+      salary: {
+        title: '2024 各城市程序员月薪分布 (千元)',
+        cats: ['北京', '上海', '深圳', '杭州', '成都', '西安'],
+        groups: [
+          randn(28, 8, 60), randn(27, 7, 60), randn(26, 7, 60),
+          randn(24, 6, 60), randn(18, 5, 60), randn(16, 4, 60)
+        ]
+      },
+      exam: {
+        title: '各班级期末考试成绩 (分)',
+        cats: ['一班', '二班', '三班', '四班', '实验班'],
+        groups: [
+          randn(75, 12, 45), randn(72, 14, 45), randn(78, 10, 45),
+          randn(70, 15, 45), randn(88, 8, 45)
+        ]
+      },
+      ab: {
+        title: 'A/B 测试:两组用户停留时长 (秒)',
+        cats: ['A组(旧版)', 'B组(新版)'],
+        groups: [randn(120, 30, 80), randn(180, 35, 80)]
+      }
+    };
+
+    function render(key) {
+      const d = DATASETS[key];
+      const stats = genBoxData(d.groups);
+      const outlierData = [];
+      d.cats.forEach((cat, i) => {
+        stats[i].outliers.forEach(v => outlierData.push([i, v]));
+      });
+
+      chart.setOption({
+        backgroundColor: 'transparent',
+        title: { text: d.title, left: 'center', textStyle: { fontFamily: 'Source Serif 4, serif', fontSize: 14, color: '#6b6b6b', fontWeight: 400 } },
+        tooltip: { trigger: 'item' },
+        grid: { left: 60, right: 30, top: 70, bottom: 40 },
+        xAxis: { type: 'category', data: d.cats, axisLine: { lineStyle: { color: '#d8d4c8' } }, axisLabel: { color: '#3d3d3d', fontFamily: 'sans-serif' } },
+        yAxis: { type: 'value', splitLine: { lineStyle: { color: '#e8e4d8' } }, axisLabel: { color: '#6b6b6b', fontFamily: 'sans-serif' } },
+        series: [
+          {
+            name: '箱线', type: 'boxplot',
+            data: stats.map(s => s.box),
+            itemStyle: { color: 'rgba(44, 82, 130, 0.15)', borderColor: '#2c5282', borderWidth: 1.5 },
+            emphasis: { itemStyle: { borderColor: '#9c4221', borderWidth: 2 } }
+          },
+          {
+            name: '离群值', type: 'scatter',
+            data: outlierData,
+            symbolSize: 6,
+            itemStyle: { color: '#9c4221' }
+          }
+        ]
+      }, true);
+    }
+
+    render('salary');
+    document.querySelectorAll('.controls button').forEach(btn => {
+      btn.onclick = () => {
+        document.querySelectorAll('.controls button').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        render(btn.dataset.set);
+      };
+    });
+    window.addEventListener('resize', () => chart.resize());
+  </script>
+</body>
+</html>
