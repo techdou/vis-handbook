@@ -34,7 +34,19 @@
     @media (max-width: 420px) { body { padding: 12px 10px; } h1 { font-size: 20px; } svg { height: calc(100vh - 160px) !important; min-height: 340px !important; } }
   </style>
 </head>
-<body>
+<body><!-- BACK_BTN -->
+  <a href="../index.html#28-radial-tree" style="
+    position:fixed; top:16px; right:16px; z-index:100;
+    font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei',sans-serif;
+    background:#1a1a1a; color:#faf9f6; text-decoration:none;
+    padding:8px 16px; border-radius:2px; font-size:12px; font-weight:500;
+    letter-spacing:0.04em; box-shadow:0 2px 12px rgba(0,0,0,0.15);
+    display:inline-flex; align-items:center; gap:6px;
+    transition:background .15s, transform .15s;
+  " onmouseover="this.style.background='#2c5282';this.style.transform='translateY(-1px)'"
+    onmouseout="this.style.background='#1a1a1a';this.style.transform='translateY(0)'">
+    ← 返回介绍
+  </a>
   <h1>径向树 <em>Radial Tidy Tree</em></h1>
   <div class="sub">放射状层级 · 根在中心 · 枝叶向外 · 适合深层级结构</div>
   <div class="controls">

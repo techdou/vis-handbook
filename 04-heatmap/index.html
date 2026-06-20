@@ -68,7 +68,19 @@
     }
   </style>
 </head>
-<body>
+<body><!-- BACK_BTN -->
+  <a href="../index.html#04-heatmap" style="
+    position:fixed; top:16px; right:16px; z-index:100;
+    font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei',sans-serif;
+    background:#1a1a1a; color:#faf9f6; text-decoration:none;
+    padding:8px 16px; border-radius:2px; font-size:12px; font-weight:500;
+    letter-spacing:0.04em; box-shadow:0 2px 12px rgba(0,0,0,0.15);
+    display:inline-flex; align-items:center; gap:6px;
+    transition:background .15s, transform .15s;
+  " onmouseover="this.style.background='#2c5282';this.style.transform='translateY(-1px)'"
+    onmouseout="this.style.background='#1a1a1a';this.style.transform='translateY(0)'">
+    ← 返回介绍
+  </a>
   <h1>热力矩阵图 <em>Heatmap / Adjacency Matrix</em></h1>
   <div class="sub">二维数值矩阵 · 颜色编码强度 · 切换相关性矩阵 / 行为密度 / 共现矩阵</div>
   <div class="controls">

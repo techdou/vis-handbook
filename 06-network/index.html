@@ -25,6 +25,7 @@
     .hint, .info, .mapping { font-family: var(--sans); font-size: 12px; color: var(--ink-3); margin-top: 10px; line-height: 1.6; }
     .hint code, .mapping code { font-family: var(--mono); background: var(--paper-soft); padding: 1px 6px; border-radius: 2px; color: var(--accent); font-size: 11px; }
     #chart, #cloud, #cy { border: 1px solid var(--rule); border-radius: 2px; background: var(--paper); }
+    #chart { width: 100%; height: calc(100vh - 200px); min-height: 480px; }
     svg { display: block; width: 100%; }
     .controls { display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; align-items: center; }
     .controls button, .controls select {
@@ -68,7 +69,19 @@
     }
   </style>
 </head>
-<body>
+<body><!-- BACK_BTN -->
+  <a href="../index.html#06-network" style="
+    position:fixed; top:16px; right:16px; z-index:100;
+    font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei',sans-serif;
+    background:#1a1a1a; color:#faf9f6; text-decoration:none;
+    padding:8px 16px; border-radius:2px; font-size:12px; font-weight:500;
+    letter-spacing:0.04em; box-shadow:0 2px 12px rgba(0,0,0,0.15);
+    display:inline-flex; align-items:center; gap:6px;
+    transition:background .15s, transform .15s;
+  " onmouseover="this.style.background='#2c5282';this.style.transform='translateY(-1px)'"
+    onmouseout="this.style.background='#1a1a1a';this.style.transform='translateY(0)'">
+    ← 返回介绍
+  </a>
   <h1>网络图 <em>Network Graph</em></h1>
   <div class="sub">力导向布局 · 节点拖拽 · 滚轮缩放 · 悬浮高亮邻居</div>
   <div class="controls">
@@ -85,8 +98,8 @@
 
   <script>
     const svg = d3.select('#chart');
-    const W = () => svg.node().clientWidth;
-    const H = () => Math.max(500, svg.node().clientHeight);
+    const W = () => svg.node().clientWidth || 800;
+    const H = () => Math.max(480, svg.node().clientHeight || 500);
 
     // 简单社区发现:同 group 同色
     const groupColors = ['#2c5282', '#9c4221', '#975a16', '#4a6741', '#6b5d8a', '#2d7a7a'];
@@ -169,6 +182,10 @@
         .style('font-size', n => Math.min(14, 9 + n.degree) + 'px')
         .text(n => n.id);
 
+      // 先定义 zoom 行为(供 fitToView 和手动缩放共用)
+      const zoom = d3.zoom().scaleExtent([0.2, 4]).on('zoom', e => container.attr('transform', e.transform));
+      svg.call(zoom);
+
       // 力模拟 —— 调优防止节点挤一团
       // 1. 给节点随机初始位置(避免全堆在原点)
       d.nodes.forEach(n => {
@@ -198,7 +215,25 @@
                  .attr('x2', l => l.target.x).attr('y2', l => l.target.y);
           nodeSel.attr('cx', n => n.x).attr('cy', n => n.y);
           labelSel.attr('x', n => n.x).attr('y', n => n.y);
-        });
+        })
+        // 关键:力模拟结束后自动 fit-to-view,让整张图居中并缩放到可见区
+        .on('end', () => fitToView());
+
+      // fit-to-view:计算节点包围盒,缩放平移到容器中央
+      function fitToView() {
+        if (!d.nodes.length || !d.nodes[0].x) return;
+        const padding = 60;
+        const xs = d.nodes.map(n => n.x), ys = d.nodes.map(n => n.y);
+        const minX = Math.min(...xs), maxX = Math.max(...xs);
+        const minY = Math.min(...ys), maxY = Math.max(...ys);
+        const bw = Math.max(1, maxX - minX), bh = Math.max(1, maxY - minY);
+        const cw = W0, ch = H0;
+        const scale = Math.min((cw - padding * 2) / bw, (ch - padding * 2) / bh, 2.5);
+        const s = Math.max(0.3, scale);
+        const tx = cw / 2 - s * (minX + bw / 2);
+        const ty = ch / 2 - s * (minY + bh / 2);
+        svg.transition().duration(500).call(zoom.transform, d3.zoomIdentity.translate(tx, ty).scale(s));
+      }
 
       // 拖拽
       const drag = d3.drag()
@@ -206,9 +241,6 @@
         .on('drag', (e, n) => { n.fx = e.x; n.fy = e.y; })
         .on('end', (e, n) => { if (!e.active) simulation.alphaTarget(0); n.fx = null; n.fy = null; });
       nodeSel.call(drag);
-
-      // 缩放平移
-      svg.call(d3.zoom().scaleExtent([0.3, 4]).on('zoom', e => container.attr('transform', e.transform)));
 
       // hover 高亮邻居
       const tip = d3.select('#tip');

@@ -211,4 +211,14 @@ document.addEventListener('keydown', (e) => {
   if (e.key === 'ArrowRight') document.getElementById('btnNext').click();
 });
 
-go('cover');
+/* hash 路由:支持从子页面「返回」按钮回到指定详情页
+   例 #06-network → 直接打开网络图详情页(用于子页全屏打开后的返回) */
+function initFromHash() {
+  const hash = location.hash.slice(1);
+  if (hash && CHARTS.some(c => c.id === hash)) {
+    go(hash);
+    return;
+  }
+  go('cover');
+}
+initFromHash();
