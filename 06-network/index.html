@@ -182,7 +182,7 @@
         .style('font-size', n => Math.min(14, 9 + n.degree) + 'px')
         .text(n => n.id);
 
-      // 先定义 zoom 行为(供 fitToView 和手动缩放共用)
+      // 先定义 zoom 行为(供手动缩放平移;fit 用直接改坐标,不走 transform)
       const zoom = d3.zoom().scaleExtent([0.2, 4]).on('zoom', e => container.attr('transform', e.transform));
       svg.call(zoom);
 
@@ -209,30 +209,44 @@
         // 用 x/y 定位力代替 forceCenter(后者会持续往中心拉导致挤压)
         .force('x', d3.forceX(W0 / 2).strength(0.04))
         .force('y', d3.forceY(H0 / 2).strength(0.04))
-        .alphaDecay(0.02)
-        .on('tick', () => {
-          linkSel.attr('x1', l => l.source.x).attr('y1', l => l.source.y)
-                 .attr('x2', l => l.target.x).attr('y2', l => l.target.y);
-          nodeSel.attr('cx', n => n.x).attr('cy', n => n.y);
-          labelSel.attr('x', n => n.x).attr('y', n => n.y);
-        })
-        // 关键:力模拟结束后自动 fit-to-view,让整张图居中并缩放到可见区
-        .on('end', () => fitToView());
+        .alphaDecay(0.04)
+        .alphaMin(0.05)
+        .on('tick', onTick)
+        // 关键:力模拟结束后直接对节点坐标做仿射变换,居中并缩放到可见区
+        .on('end', fitToView);
 
-      // fit-to-view:计算节点包围盒,缩放平移到容器中央
+      function onTick() {
+        linkSel.attr('x1', l => l.source.x).attr('y1', l => l.source.y)
+               .attr('x2', l => l.target.x).attr('y2', l => l.target.y);
+        nodeSel.attr('cx', n => n.x).attr('cy', n => n.y);
+        labelSel.attr('x', n => n.x).attr('y', n => n.y);
+      }
+
+      // fit-to-view:直接改写节点 x/y 坐标(不走 SVG transform,避免与 tick 打架)
       function fitToView() {
-        if (!d.nodes.length || !d.nodes[0].x) return;
-        const padding = 60;
-        const xs = d.nodes.map(n => n.x), ys = d.nodes.map(n => n.y);
+        // 重置可能的 zoom transform,保证回到无变换状态
+        svg.call(zoom.transform, d3.zoomIdentity);
+
+        const validNodes = d.nodes.filter(n => typeof n.x === 'number' && typeof n.y === 'number');
+        if (!validNodes.length) return;
+        const padding = 70;
+        const xs = validNodes.map(n => n.x), ys = validNodes.map(n => n.y);
         const minX = Math.min(...xs), maxX = Math.max(...xs);
         const minY = Math.min(...ys), maxY = Math.max(...ys);
         const bw = Math.max(1, maxX - minX), bh = Math.max(1, maxY - minY);
-        const cw = W0, ch = H0;
-        const scale = Math.min((cw - padding * 2) / bw, (ch - padding * 2) / bh, 2.5);
+        // 缩放比:让包围盒适配容器(留 padding),且不放大太多
+        const scale = Math.min((W0 - padding * 2) / bw, (H0 - padding * 2) / bh, 1.5);
         const s = Math.max(0.3, scale);
-        const tx = cw / 2 - s * (minX + bw / 2);
-        const ty = ch / 2 - s * (minY + bh / 2);
-        svg.transition().duration(500).call(zoom.transform, d3.zoomIdentity.translate(tx, ty).scale(s));
+        // 平移:把包围盒中心移到容器中心
+        const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
+        const tx = W0 / 2 - s * cx, ty = H0 / 2 - s * cy;
+        // 仿射变换应用到每个节点(同时更新 fx/fy 固定坐标,防止模拟重启时跑偏)
+        validNodes.forEach(n => {
+          n.x = n.fx = s * n.x + tx;
+          n.y = n.fy = s * n.y + ty;
+        });
+        // 同步连接线的 source/target 已经是节点引用,会自动跟着更新
+        onTick();
       }
 
       // 拖拽
@@ -285,7 +299,16 @@
       render(curSet, +this.value);
     };
     document.getElementById('reheat').onclick = () => {
-      if (simulation) simulation.alpha(1).restart();
+      if (!simulation) return;
+      // 清除 fit 时设置的固定坐标,让节点重新自由散开
+      const W0 = W(), H0 = H();
+      simulation.nodes().forEach(n => {
+        n.fx = null; n.fy = null;
+        n.x = W0 / 2 + (Math.random() - 0.5) * W0 * 0.7;
+        n.y = H0 / 2 + (Math.random() - 0.5) * H0 * 0.7;
+        n.vx = 0; n.vy = 0;
+      });
+      simulation.alpha(1).restart();
     };
     window.addEventListener('resize', () => render(curSet, +document.getElementById('charge').value));
   </script>
