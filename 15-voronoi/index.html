@@ -25,6 +25,8 @@
     .hint, .info, .mapping { font-family: var(--sans); font-size: 12px; color: var(--ink-3); margin-top: 10px; line-height: 1.6; }
     .hint code, .mapping code { font-family: var(--mono); background: var(--paper-soft); padding: 1px 6px; border-radius: 2px; color: var(--accent); font-size: 11px; }
     #chart, #cloud, #cy { border: 1px solid var(--rule); border-radius: 2px; background: var(--paper); }
+    #chart, #cloud, #cy { width: 100%; height: calc(100vh - 180px); min-height: 520px; }
+    #cloud canvas { width: 100%; height: 100%; display: block; }
     svg { display: block; width: 100%; }
     .controls { display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; align-items: center; }
     .controls button, .controls select {
@@ -173,7 +175,9 @@
       }
     }
 
-    render();
+    // 延迟首帧渲染:等 SVG 拿到真实高度(100vh 计算)再画,避免全屏打开时高度为 0 导致内容塌陷
+    requestAnimationFrame(() => requestAnimationFrame(render));
+    window.addEventListener('load', render);
 
     document.querySelectorAll('.controls button[data-set]').forEach(btn => {
       btn.onclick = () => {
@@ -204,7 +208,9 @@
       }
     });
 
-    window.addEventListener('resize', render);
+    let _rsT;
+    window.addEventListener('resize', () => { clearTimeout(_rsT); _rsT = setTimeout(render, 150); });
   </script>
+  <script src="../assets/fullscreen-tools.js"></script>
 </body>
 </html>

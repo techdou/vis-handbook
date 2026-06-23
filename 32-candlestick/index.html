@@ -64,6 +64,9 @@
 
   <script>
     const chart = echarts.init(document.getElementById('chart'));
+    // 全屏打开时容器高度(100vh)可能在 init 时未就绪,延迟一次 resize 兜底
+    requestAnimationFrame(() => chart.resize());
+    window.addEventListener('load', () => chart.resize());
 
     // 生成 OHLC 数据(随机游走 + 趋势)
     function genOHLC(seed, days, startPrice, volatility, trend) {
@@ -159,5 +162,6 @@
     });
     window.addEventListener('resize', () => chart.resize());
   </script>
+  <script src="../assets/fullscreen-tools.js"></script>
 </body>
 </html>

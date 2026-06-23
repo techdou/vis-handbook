@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>07 · 降维图 Dimensionality Reduction</title>
   <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,wght@0,400;0,500;1,400&family=JetBrains+Mono&family=Noto+Serif+SC:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../assets/algo-guide.css" />
   <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -104,6 +105,28 @@
     <b>说明</b>:浏览器侧实现。<b style="color:#9c4221">PCA</b> 用协方差特征分解(标准实现);
     <b style="color:#9c4221">t-SNE / UMAP</b> 此处为教学版简化实现(基于随机投影+局部优化),
     真实研究请用 Python 的 <code>sklearn</code> / <code>umap-learn</code> 在后端算好坐标再传给 Plotly。
+  </div>
+
+  <!-- 算法解释区:下滑可学习 PCA / t-SNE / UMAP 的差异 -->
+  <div class="algo-guide">
+    <div class="algo-title">📐 算法解释 · Dimensionality Reduction<span>切换上方算法按钮,对照下方说明观察簇结构</span></div>
+    <div class="algo-scroll">
+      <div class="algo-card">
+        <div class="algo-name">PCA 主成分分析 <em>Principal Component Analysis</em></div>
+        <p>PCA 像给高维数据找几根最重要的尺子,第一根尺子解释最大变化,第二根解释剩下变化。它是线性方法,结果稳定、速度快、可解释性最好。</p>
+        <div class="algo-when">适合先做基线观察、看全局趋势和数据大方向。</div>
+      </div>
+      <div class="algo-card">
+        <div class="algo-name">t-SNE <em>t-distributed Stochastic Neighbor Embedding</em></div>
+        <p>t-SNE 更关注谁和谁离得近,会努力把局部邻居压成清楚的小团。它看簇很好,但不同簇之间的远近不一定能当真实距离解释。</p>
+        <div class="algo-when">适合看样本是否分成多个明显簇。</div>
+      </div>
+      <div class="algo-card">
+        <div class="algo-name">UMAP <em>Uniform Manifold Approximation and Projection</em></div>
+        <p>UMAP 可以理解成先搭一张近邻关系网,再把这张网摊平成 2D/3D。它通常比 t-SNE 更快,也更保留一部分全局结构。</p>
+        <div class="algo-when">适合较大数据集和需要兼顾局部/全局结构的场景。</div>
+      </div>
+    </div>
   </div>
 
   <script>
@@ -285,7 +308,9 @@
       Plotly.Plots.resize(gd);
     }
 
-    render();
+    // 延迟首帧渲染:等容器拿到真实尺寸再画,避免全屏打开时尺寸为 0 导致散点塌陷
+    requestAnimationFrame(() => requestAnimationFrame(render));
+    window.addEventListener('load', render);
 
     document.querySelectorAll('.controls button[data-algo]').forEach(btn => {
       btn.onclick = () => {
@@ -306,5 +331,6 @@
       Plotly.Plots.resize(gd);
     });
   </script>
+  <script src="../assets/fullscreen-tools.js"></script>
 </body>
 </html>

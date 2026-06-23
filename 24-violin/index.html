@@ -19,7 +19,7 @@
     h1 { font-family: var(--serif); font-size: 26px; font-weight: 500; }
     h1 em { font-style: italic; color: var(--accent); font-weight: 400; }
     .sub { font-family: var(--sans); color: var(--ink-3); font-size: 13px; margin: 6px 0 18px; line-height: 1.5; }
-    svg { display: block; width: 100%; border: 1px solid var(--rule); border-radius: 2px; background: var(--paper); }
+    svg { display: block; width: 100%; height: calc(100vh - 180px); min-height: 520px; border: 1px solid var(--rule); border-radius: 2px; background: var(--paper); }
     .controls { display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; align-items: center; }
     .controls button { font-family: var(--sans); background: var(--paper); border: 1px solid var(--rule); color: var(--ink-2); padding: 6px 14px; border-radius: 2px; cursor: pointer; font-size: 12px; transition: all .15s; }
     .controls button:hover { color: var(--accent); border-color: var(--accent); }
@@ -204,14 +204,18 @@
       g.selectAll('.tick line').attr('stroke', '#e8e4d8');
     }
 
-    render();
+    // 延迟首帧渲染:等 SVG 拿到真实宽度(100vh 计算)再画,避免全屏打开时尺寸为 0 导致内容塌陷
+    requestAnimationFrame(() => requestAnimationFrame(render));
+    window.addEventListener('load', render);
     document.querySelectorAll('.controls button').forEach(btn => {
       btn.onclick = () => {
         document.querySelectorAll('.controls button').forEach(b => b.classList.remove('active'));
         btn.classList.add('active'); curSet = btn.dataset.set; render();
       };
     });
-    window.addEventListener('resize', render);
+    let _rsT;
+    window.addEventListener('resize', () => { clearTimeout(_rsT); _rsT = setTimeout(render, 150); });
   </script>
+  <script src="../assets/fullscreen-tools.js"></script>
 </body>
 </html>

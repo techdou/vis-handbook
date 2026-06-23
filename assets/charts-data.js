@@ -80,6 +80,12 @@ const CHARTS = [
       '<strong>个性化配色</strong>:按情绪/类别语义着色(正面绿色/负面红色)',
       '<strong>3D 河流</strong>:用 Three.js 把每层做成高度场,产生立体水流',
     ],
+    algorithms: [
+      { name: 'Wiggle 偏移', en: 'stackOffsetWiggle', explain: '把多条面积带围绕中心线摆放,尽量减少整体上下摆动。你可以把它理解成让河流自然摆在画布中间,所以最像新闻图里的 ThemeRiver。', when: '适合看长期趋势和整体形状,默认推荐。' },
+      { name: 'Silhouette 偏移', en: 'stackOffsetSilhouette', explain: '先算所有层的总厚度,再把总厚度居中。它比 wiggle 更直接,像把普通堆叠面积图整体挪到中轴线上。', when: '适合层数不多、希望画面左右上下更均衡时。' },
+      { name: 'Expand 归一化', en: 'stackOffsetExpand', explain: '把每个时间点的总量都压成 100%,每层显示占比而不是绝对值。', when: '适合比较结构占比,但不适合判断总量变大还是变小。' },
+      { name: 'Zero 堆叠', en: 'stackOffsetNone', explain: '从 0 基线向上叠加,就是传统堆叠面积图。', when: '适合强调总量,但河流感较弱。' },
+    ],
   },
   {
     id: '04-heatmap',
@@ -184,6 +190,11 @@ const CHARTS = [
       '<strong>交互式探查</strong>:brush 框选 → 触发原图列表/样本预览',
       '<strong>3D 沉浸</strong>:用 Three.js 做 VR/AR 沉浸式嵌入空间漫游',
     ],
+    algorithms: [
+      { name: 'PCA 主成分分析', en: 'Principal Component Analysis', explain: 'PCA 像给高维数据找几根最重要的尺子,第一根尺子解释最大变化,第二根解释剩下变化。它是线性方法,结果稳定、速度快、可解释性最好。', when: '适合先做基线观察、看全局趋势和数据大方向。' },
+      { name: 't-SNE', en: 't-distributed Stochastic Neighbor Embedding', explain: 't-SNE 更关注谁和谁离得近,会努力把局部邻居压成清楚的小团。它看簇很好,但不同簇之间的远近不一定能当真实距离解释。', when: '适合看样本是否分成多个明显簇。' },
+      { name: 'UMAP', en: 'Uniform Manifold Approximation and Projection', explain: 'UMAP 可以理解成先搭一张近邻关系网,再把这张网摊平成 2D/3D。它通常比 t-SNE 更快,也更保留一部分全局结构。', when: '适合较大数据集和需要兼顾局部/全局结构的场景。' },
+    ],
   },
   {
     id: '08-knowledge-graph',
@@ -210,6 +221,12 @@ const CHARTS = [
       '<strong>本体编辑器</strong>:让用户在画布上拖拽定义 schema',
       '<strong>动态增量</strong>:支持边添加/删除并实时重布局',
     ],
+    algorithms: [
+      { name: 'Cose 力导向', en: 'Compound Spring Embedder', explain: '把节点看成互相排斥的小球,把边看成弹簧。系统运行一会儿后会达到相对稳定的位置。', when: '适合关系网探索,能自然把相关实体拉近。' },
+      { name: 'Breadthfirst 层次布局', en: 'Breadth-first Layout', explain: '按层级一层层排开,像组织架构图或树状目录。', when: '适合有明显父子层级或上下游关系的数据。' },
+      { name: 'Circle 圆周布局', en: 'Circle Layout', explain: '所有节点排在圆上,关系线在内部连接。', when: '适合节点不多、想快速看整体连接时。' },
+      { name: 'Concentric 同心布局', en: 'Concentric Layout', explain: '重要或连接多的节点靠中心,其他节点按圈层向外排。', when: '适合突出核心实体和边缘实体。' },
+    ],
   },
   {
     id: '09-dtw',
@@ -235,6 +252,11 @@ const CHARTS = [
       '<strong>DTW 聚类</strong>:多条时序互相 DTW,做层级聚类',
       '<strong>交互式调整窗口</strong>:拖动 Sakoe-Chiba 窗口看约束影响',
       '<strong>3D 代价曲面</strong>:把代价矩阵渲染成 3D 地形,路径如山路',
+    ],
+    algorithms: [
+      { name: '欧氏距离', en: 'Euclidean Distance', explain: '把同一时间点上的两个值直接相减再求总距离。它像要求两个人按完全相同节奏跑步,一步都不能错位。', when: '适合长度相同、节奏一致的序列。' },
+      { name: 'DTW 动态时间规整', en: 'Dynamic Time Warping', explain: 'DTW 允许一条序列在时间轴上拉伸或压缩,用动态规划找最便宜的对齐路径。它比较的是形状相似,不是时间点必须一一对应。', when: '适合语音、心电、手势、金融形态这类快慢可能不同的序列。' },
+      { name: 'Sakoe-Chiba 窗口', en: 'Warping Window', explain: '给 DTW 加一条带状限制,要求路径不能偏离对角线太远。这样能减少计算量,也避免过度扭曲。', when: '适合你知道两条序列最多只会错开一点点的场景。' },
     ],
   },
   {
@@ -547,6 +569,12 @@ const CHARTS = [
       '<strong>动画曲面</strong>:随时间变化的波形/呼吸曲面',
       '<strong>切片</strong>:任意平面切片看内部',
       '<strong>多曲面对比</strong>:真实 vs 预测曲面叠放',
+    ],
+    algorithms: [
+      { name: '波纹函数', en: 'sin(x) · cos(y)', explain: '用正弦和余弦生成连续起伏,像水面波纹。它能帮助理解 x、y 两个方向同时变化时 z 如何上下起伏。', when: '适合演示周期性、波动和相位变化。' },
+      { name: '鞍点曲面', en: 'x² - y²', explain: '一个方向往上弯,另一个方向往下弯,形状像马鞍。机器学习里的损失地形经常会出现类似鞍点。', when: '适合理解优化为什么会卡在既不是山峰也不是谷底的位置。' },
+      { name: '高斯峰', en: 'Gaussian Surface', explain: '中心最高、向四周平滑下降,像一座钟形小山。二维概率密度经常用它做基础模型。', when: '适合演示概率密度、热点中心和空间衰减。' },
+      { name: '径向波', en: 'Radial Ripple', explain: '高度只和离中心的距离有关,因此会形成一圈圈同心波纹。', when: '适合展示扩散、波前和中心辐射。' },
     ],
   },
   {

@@ -147,6 +147,8 @@
 
     function render(key, chargeStrength = -500) {
       const d = JSON.parse(JSON.stringify(DATASETS[key]));
+      // d3.forceLink 只识别 source/target;保留 s/t 方便后续邻居高亮逻辑读取原始 id。
+      d.links = d.links.map(l => ({ ...l, source: l.s, target: l.t }));
       svg.selectAll('*').remove();
       const W0 = W(), H0 = H();
 
@@ -287,7 +289,10 @@
       });
     }
 
-    render(curSet);
+    // 延迟首帧渲染:等 SVG 拿到真实尺寸(100vh 计算)再画,避免全屏打开时 W0/H0 为 0
+    // 导致 fitToView 算错、整个网络图偏到左上角
+    requestAnimationFrame(() => requestAnimationFrame(() => render(curSet, +document.getElementById('charge').value)));
+    window.addEventListener('load', () => render(curSet, +document.getElementById('charge').value));
     document.querySelectorAll('.controls button[data-set]').forEach(btn => {
       btn.onclick = () => {
         document.querySelectorAll('.controls button[data-set]').forEach(b => b.classList.remove('active'));
@@ -310,7 +315,12 @@
       });
       simulation.alpha(1).restart();
     };
-    window.addEventListener('resize', () => render(curSet, +document.getElementById('charge').value));
+    let _rsT;
+    window.addEventListener('resize', () => {
+      clearTimeout(_rsT);
+      _rsT = setTimeout(() => render(curSet, +document.getElementById('charge').value), 150);
+    });
   </script>
+  <script src="../assets/fullscreen-tools.js"></script>
 </body>
 </html>

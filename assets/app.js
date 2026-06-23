@@ -24,9 +24,9 @@ function renderCover() {
   return `
     <div class="cover">
       <div class="cover-eyebrow">A Field Guide · 调研手册</div>
-      <h1>可视化的<br/><em>二十二种</em>姿态</h1>
+      <h1>可视化的<br/><em>三十二种</em>姿态</h1>
       <p class="cover-lede">
-        系统整理 <strong>22 类</strong>专业级可视化图表,从基础的桑基、箱线、河流,
+        系统整理 <strong>${CHARTS.length} 类</strong>专业级可视化图表,从基础的桑基、箱线、河流,
         到复杂的降维、知识图谱、DTW。每一种都配有<strong>可交互的实例</strong>、
         原理说明、适用场景与二次创作的思路。
         点击任意卡片进入详情,或用底部翻页依次研读。
@@ -73,13 +73,26 @@ function renderDetail(chart) {
   const idx = CHARTS.findIndex(c => c.id === chart.id);
   const scenes = chart.scenes.map(s => `<li>${s}</li>`).join('');
   const remix = chart.remix.map(s => `<li>${s}</li>`).join('');
+  const algorithms = (chart.algorithms || []).map(item => `
+    <article class="algorithm-card">
+      <div class="algorithm-name">${item.name}<em>${item.en || ''}</em></div>
+      <p>${item.explain}</p>
+      <div class="algorithm-note">${item.when}</div>
+    </article>
+  `).join('');
+  const algorithmGuide = algorithms ? `
+    <div class="algorithm-guide">
+      <div class="algorithm-guide-title">算法解释 · Algorithm Notes</div>
+      <div class="algorithm-guide-scroll">${algorithms}</div>
+    </div>
+  ` : '';
 
   return `
     <div class="detail-header">
       <div>
         <h2>${chart.title}<br/><em>${chart.en}</em></h2>
         <div class="en">第 ${idx + 1} 篇,共 ${CHARTS.length} 篇</div>
-        <div class="detail-meta">CHAPTER ${chart.num} / 22 · ${chart.tech}</div>
+        <div class="detail-meta">CHAPTER ${chart.num} / ${CHARTS.length} · ${chart.tech}</div>
       </div>
       <div class="tech-badge">${chart.tech}</div>
     </div>
@@ -89,10 +102,12 @@ function renderDetail(chart) {
         <div class="chart-box">
           <div class="chart-toolbar">
             <a class="btn" href="./${chart.id}/index.html" target="_blank">全屏打开 ↗</a>
+            <a class="btn" href="./${chart.id}/index.html?showCode=1" target="_blank">查看代码 &lt;/&gt;</a>
             <button class="btn" onclick="location.reload()">重新加载 ↻</button>
           </div>
           <div id="chart-mount" class="chart-inner"></div>
         </div>
+        ${algorithmGuide}
 
         <div class="info-block" style="margin-top: 32px;">
           <h3>实现方式 · How it's made</h3>
@@ -204,7 +219,11 @@ document.getElementById('btnNext').addEventListener('click', () => {
   if (idx === CHARTS.length - 1) return;
   go(CHARTS[idx + 1].id);
 });
-document.getElementById('btnHome').addEventListener('click', () => go('cover'));
+document.getElementById('btnHome').addEventListener('click', (e) => {
+  e.preventDefault();
+  history.replaceState(null, '', location.pathname);
+  go('cover');
+});
 
 document.addEventListener('keydown', (e) => {
   if (e.key === 'ArrowLeft') document.getElementById('btnPrev').click();
@@ -221,4 +240,5 @@ function initFromHash() {
   }
   go('cover');
 }
+window.addEventListener('hashchange', initFromHash);
 initFromHash();

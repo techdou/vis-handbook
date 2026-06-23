@@ -80,6 +80,9 @@
 
   <script>
     const chart = echarts.init(document.getElementById('chart'));
+    // 全屏打开时容器高度(100vh)可能在 init 时未就绪,延迟一次 resize 兜底,避免桑基图被挤成一条线
+    requestAnimationFrame(() => chart.resize());
+    window.addEventListener('load', () => chart.resize());
 
     const DATASETS = {
       energy: {
@@ -186,5 +189,6 @@
     });
     window.addEventListener('resize', () => chart.resize());
   </script>
+  <script src="../assets/fullscreen-tools.js"></script>
 </body>
 </html>

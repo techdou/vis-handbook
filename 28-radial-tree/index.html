@@ -18,7 +18,7 @@
     h1 { font-family: var(--serif); font-size: 26px; font-weight: 500; }
     h1 em { font-style: italic; color: var(--accent); font-weight: 400; }
     .sub { font-family: var(--sans); color: var(--ink-3); font-size: 13px; margin: 6px 0 18px; line-height: 1.5; }
-    svg { display: block; width: 100%; border: 1px solid var(--rule); border-radius: 2px; background: var(--paper); }
+    svg { display: block; width: 100%; height: calc(100vh - 180px); min-height: 520px; border: 1px solid var(--rule); border-radius: 2px; background: var(--paper); }
     .controls { display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; }
     .controls button { font-family: var(--sans); background: var(--paper); border: 1px solid var(--rule); color: var(--ink-2); padding: 6px 14px; border-radius: 2px; cursor: pointer; font-size: 12px; transition: all .15s; }
     .controls button:hover { color: var(--accent); border-color: var(--accent); }
@@ -191,5 +191,6 @@
       if (active) render(active.dataset.set);
     });
   </script>
+  <script src="../assets/fullscreen-tools.js"></script>
 </body>
 </html>

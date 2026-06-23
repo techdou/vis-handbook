@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>08 · 知识图谱 Knowledge Graph</title>
   <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,wght@0,400;0,500;1,400&family=JetBrains+Mono&family=Noto+Serif+SC:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../assets/algo-guide.css" />
   <script src="https://cdn.jsdelivr.net/npm/cytoscape@3.30.2/dist/cytoscape.min.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -25,15 +26,17 @@
     .hint, .info, .mapping { font-family: var(--sans); font-size: 12px; color: var(--ink-3); margin-top: 10px; line-height: 1.6; }
     .hint code, .mapping code { font-family: var(--mono); background: var(--paper-soft); padding: 1px 6px; border-radius: 2px; color: var(--accent); font-size: 11px; }
     #chart, #cloud, #cy { border: 1px solid var(--rule); border-radius: 2px; background: var(--paper); }
+    #chart, #cloud, #cy { width: 100%; height: calc(100vh - 180px); min-height: 520px; }
+    #cloud canvas { width: 100%; height: 100%; display: block; }
     svg { display: block; width: 100%; }
-    .controls { display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; align-items: center; }
-    .controls button, .controls select {
+    .controls, .layout-row { display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; align-items: center; }
+    .controls button, .controls select, .layout-row button, .layout-row select {
       font-family: var(--sans); background: var(--paper); border: 1px solid var(--rule); color: var(--ink-2);
       padding: 6px 14px; border-radius: 2px; cursor: pointer; font-size: 12px; transition: all .15s;
     }
-    .controls button:hover, .controls select:hover { color: var(--accent); border-color: var(--accent); }
-    .controls button.active { background: var(--ink); color: var(--paper); border-color: var(--ink); }
-    .controls label { color: var(--ink-3); font-family: var(--sans); font-size: 12px; }
+    .controls button:hover, .controls select:hover, .layout-row button:hover, .layout-row select:hover { color: var(--accent); border-color: var(--accent); }
+    .controls button.active, .layout-row button.active { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+    .controls label, .layout-row label { color: var(--ink-3); font-family: var(--sans); font-size: 12px; }
     .legend { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 12px; font-family: var(--sans); font-size: 11px; color: var(--ink-2); }
     .legend span { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
     .legend i { width: 12px; height: 12px; display: inline-block; }
@@ -50,9 +53,9 @@
       body { padding: 16px 14px; }
       h1 { font-size: 22px; }
       .sub { font-size: 12px; margin-bottom: 12px; }
-      .controls { gap: 4px; }
-      .controls button, .controls select { padding: 5px 10px; font-size: 11px; }
-      .controls label { font-size: 11px; }
+      .controls, .layout-row { gap: 4px; }
+      .controls button, .controls select, .layout-row button, .layout-row select { padding: 5px 10px; font-size: 11px; }
+      .controls label, .layout-row label { font-size: 11px; }
       #chart, svg, #cloud, #cy {
         height: 60vh !important;
         min-height: 360px !important;
@@ -99,6 +102,33 @@
   <div id="cy"></div>
   <div class="legend" id="legend"></div>
   <div class="info" id="info"></div>
+
+  <!-- 算法解释区:下滑可学习 4 种布局算法的差异 -->
+  <div class="algo-guide">
+    <div class="algo-title">📐 算法解释 · Layout Algorithms<span>切换上方「布局」下拉框,对照下方说明观察效果</span></div>
+    <div class="algo-scroll">
+      <div class="algo-card">
+        <div class="algo-name">Cose 力导向 <em>Compound Spring Embedder</em></div>
+        <p>把节点看成互相排斥的小球,把边看成弹簧。系统运行一会儿后会达到相对稳定的位置。</p>
+        <div class="algo-when">适合关系网探索,能自然把相关实体拉近。</div>
+      </div>
+      <div class="algo-card">
+        <div class="algo-name">Breadthfirst 层次布局 <em>Breadth-first Layout</em></div>
+        <p>按层级一层层排开,像组织架构图或树状目录。</p>
+        <div class="algo-when">适合有明显父子层级或上下游关系的数据。</div>
+      </div>
+      <div class="algo-card">
+        <div class="algo-name">Circle 圆周布局 <em>Circle Layout</em></div>
+        <p>所有节点排在圆上,关系线在内部连接。</p>
+        <div class="algo-when">适合节点不多、想快速看整体连接时。</div>
+      </div>
+      <div class="algo-card">
+        <div class="algo-name">Concentric 同心布局 <em>Concentric Layout</em></div>
+        <p>重要或连接多的节点靠中心,其他节点按圈层向外排。</p>
+        <div class="algo-when">适合突出核心实体和边缘实体。</div>
+      </div>
+    </div>
+  </div>
 
   <script>
     const typeColors = {
@@ -171,6 +201,20 @@
     let cy, curSet = 'ai', curLayout = 'cose';
     const info = document.getElementById('info');
 
+    // 等容器拿到真实尺寸再初始化(防止全屏打开时 #cy 高度为 0 导致 Cytoscape 画不出)
+    function whenReady(cb) {
+      const cyEl = document.getElementById('cy');
+      const h = cyEl.getBoundingClientRect().height;
+      if (h > 0) { cb(); return; }
+      // 轮询直到布局算出尺寸(最多 ~1.5s)
+      let n = 0;
+      const timer = setInterval(() => {
+        if (cyEl.getBoundingClientRect().height > 0 || ++n > 30) {
+          clearInterval(timer); cb();
+        }
+      }, 50);
+    }
+
     function build() {
       const d = DATASETS[curSet];
       const elements = [
@@ -226,6 +270,11 @@
                   ...(curLayout === 'cose' ? { nodeRepulsion: 8000, idealEdgeLength: 100 } : {}) }
       });
 
+      cy.ready(() => cy.fit(cy.elements(), 40));
+      cy.on('layoutstop', () => cy.fit(cy.elements(), 40));
+      // 兜底:resize 后重新 fit,避免容器尺寸变化导致图偏出可视区
+      cy.on('resize', () => cy.fit(cy.elements(), 40));
+
       // 点击节点:高亮 1 跳邻居
       cy.on('tap', 'node', function(e) {
         const node = e.target;
@@ -242,7 +291,8 @@
         outEdges.edges().forEach(ed => {
           relations.push(`${node.data('label')} →<i>${ed.data('label')}</i>→ ${ed.target().data('label')}`);
         });
-        info.style('opacity', 1).innerHTML =
+        info.style.opacity = '1';
+        info.innerHTML =
           `<div style="color:${typeColors[node.data('type')]};font-weight:700;font-size:14px;margin-bottom:6px">
              ${node.data('label')}</div>
            <div style="color:#6b6b6b">类型:${typeLabels[node.data('type')] || node.data('type')}</div>
@@ -254,7 +304,7 @@
       cy.on('tap', function(e) {
         if (e.target === cy) {
           cy.elements().removeClass('highlighted faded');
-          info.style('opacity', 0);
+          info.style.opacity = '0';
         }
       });
 
@@ -266,7 +316,7 @@
       });
     }
 
-    build();
+    whenReady(() => build());
 
     document.querySelectorAll('.layout-row button[data-set]').forEach(btn => {
       btn.onclick = () => {
@@ -281,9 +331,15 @@
     document.getElementById('reset').onclick = () => {
       cy.elements().removeClass('highlighted faded');
       cy.animate({ fit: { eles: cy.elements(), padding: 40 } }, { duration: 400 });
-      info.style('opacity', 0);
+      info.style.opacity = '0';
     };
-    window.addEventListener('resize', () => cy && cy.resize());
+    window.addEventListener('resize', () => {
+      if (cy) {
+        cy.resize();
+        cy.fit(cy.elements(), 40);
+      }
+    });
   </script>
+  <script src="../assets/fullscreen-tools.js"></script>
 </body>
 </html>
