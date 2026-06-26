@@ -18,46 +18,70 @@
 
 ---
 
+## ✨ 核心特性
+
+- **32 类图表** · 从基础桑基、箱线,到复杂降维、知识图谱、DTW
+- **全屏代码视图** · 任意图表详情页点击「全屏打开」→ 右上角「查看代码」,一键复制干净的可运行源码,附 Agent 二创注释头,可直接粘贴给 AI 做二次开发
+- **多算法解释区** · 河流图(4 种偏移)、降维图(PCA/t-SNE/UMAP)、知识图谱(4 种布局)、DTW(3 种距离)、3D 曲面(4 种函数),全屏页下滑即可学习各算法差异
+- **多场景数据** · 每张图表内置 2-3 组真实场景示例数据,页面内一键切换
+- **响应式设计** · PC / 平板 / 手机均可正常浏览
+
+---
+
 ## 📂 目录结构
 
 ```
 vis/
-├── index.html              # 🏠 总览分页入口(32 图卡片)
-├── README.md               # 📖 本文件
-├── resources.md            # 📚 框架/教程/论文资源汇总
+├── index.html                # 🏠 总览分页入口(32 图卡片)
+├── README.md                 # 📖 本文件
+├── resources.html            # 📚 框架/教程/论文资源汇总
 ├── assets/
-│   ├── style.css           # 全局样式(暗色主题)
-│   ├── charts-data.js      # 32 张图的元数据(标题/原理/场景/二创)
-│   └── app.js              # 总览页交互逻辑(分页/iframe 加载)
+│   ├── style.css             # 全局样式(学术笔记本风格)
+│   ├── charts-data.js        # 32 张图的元数据(标题/原理/场景/二创)
+│   ├── app.js                # 总览页交互逻辑(分页/iframe 加载)
+│   ├── algo-guide.css        # 全屏页「算法解释区」共享样式
+│   └── fullscreen-tools.js   # 全屏页代码查看/复制 + 尺寸兜底工具
 │
 │  ── 第一批:基础及高级 + 复杂维度(01-10)──
-├── 01-sankey/              # 🌊 桑基图            [ECharts]
-├── 02-boxplot/             # 📦 箱线图            [ECharts]
-├── 03-streamgraph/         # 🏞️ 河流图            [D3.js]
-├── 04-heatmap/             # 🔥 热力矩阵          [ECharts]
-├── 05-evolution/           # 📅 演化时间线        [D3.js]
-├── 06-network/             # 🕸️ 网络图            [D3.js]
-├── 07-dim-reduction/       # 🌌 降维图(PCA等)    [Plotly]
-├── 08-knowledge-graph/     # 🧠 知识图谱          [Cytoscape.js]
-├── 09-dtw/                 # 〰️ DTW 动态时间规整   [D3.js]
-├── 10-chord/               # 🎯 弦图              [ECharts]
+├── 01-sankey/                # 🌊 桑基图            [ECharts]
+├── 02-boxplot/               # 📦 箱线图            [ECharts]
+├── 03-streamgraph/           # 🏞️ 河流图            [D3.js]     ← 算法解释区
+├── 04-heatmap/               # 🔥 热力矩阵          [ECharts]
+├── 05-evolution/             # 📅 演化时间线        [D3.js]
+├── 06-network/               # 🕸️ 网络图            [D3.js]
+├── 07-dim-reduction/         # 🌌 降维图(PCA等)    [Plotly]    ← 算法解释区
+├── 08-knowledge-graph/       # 🧠 知识图谱          [Cytoscape] ← 算法解释区
+├── 09-dtw/                   # 〰️ DTW 动态时间规整   [D3.js]     ← 算法解释区
+├── 10-chord/                 # 🎯 弦图              [ECharts]
 │
 │  ── 第二批:扩展图表(11-22)──
-├── 11-treemap/             # 🟦 矩形树图          [ECharts]
-├── 12-sunburst/            # ☀️ 旭日图            [ECharts]
-├── 13-ridgeline/           # ⛰️ 山脊图            [D3.js]
-├── 14-parallel/            # ∥ 平行坐标图         [ECharts]
-├── 15-voronoi/             # 🔷 泰森多边形        [D3.js]
-├── 16-calendar/            # 📆 日历热力图        [ECharts]
-├── 17-arc/                 # ➰ 弧图              [D3.js]
-├── 18-beeswarm/            # 🐝 蜂群图            [D3.js]
-├── 19-edge-bundling/       # 🎀 边捆绑图          [D3.js]
-├── 20-wordcloud/           # 💭 词云              [wordcloud2.js]
-├── 21-surface/             # 🏔️ 3D 曲面           [Plotly]
-└── 22-chernoff/            # 😀 切尔诺夫脸        [D3.js]
+├── 11-treemap/               # 🟦 矩形树图          [ECharts]
+├── 12-sunburst/              # ☀️ 旭日图            [ECharts]
+├── 13-ridgeline/             # ⛰️ 山脊图            [D3.js]
+├── 14-parallel/              # ∥ 平行坐标图         [ECharts]
+├── 15-voronoi/               # 🔷 泰森多边形        [D3.js]
+├── 16-calendar/              # 📆 日历热力图        [ECharts]
+├── 17-arc/                   # ➰ 弧图              [D3.js]
+├── 18-beeswarm/              # 🐝 蜂群图            [D3.js]
+├── 19-edge-bundling/         # 🎀 边捆绑图          [D3.js]
+├── 20-wordcloud/             # 💭 词云              [wordcloud2.js]
+├── 21-surface/               # 🏔️ 3D 曲面           [Plotly]    ← 算法解释区
+└── 22-chernoff/              # 😀 切尔诺夫脸        [D3.js]
+│
+│  ── 第三批:补充图表(23-32)──
+├── 23-radar/                 # 🕸️ 雷达图            [ECharts]
+├── 24-violin/                # 🎻 小提琴图          [D3.js]
+├── 25-bubble/                # 🫧 气泡图            [ECharts]
+├── 26-slope/                 # 📐 斜率图            [D3.js]
+├── 27-circle-packing/        # ⭕ 圆填充图          [D3.js]
+├── 28-radial-tree/           # 🌳 径向树            [D3.js]
+├── 29-contour/               # 🗺️ 密度等值线        [D3.js]
+├── 30-funnel/                # 🔻 漏斗图            [ECharts]
+├── 31-waterfall/             # 🌊 瀑布图            [ECharts]
+└── 32-candlestick/           # 📈 K 线图            [ECharts]
 ```
 
-每个子目录都是**独立可运行**的 HTML,自带示例数据 + 切换按钮 + 交互。
+每个子目录都是**独立可运行**的 HTML,自带示例数据 + 切换按钮 + 交互 + 全屏代码视图。
 
 ---
 
@@ -79,12 +103,17 @@ vis/
 | 02 | **箱线图 Boxplot** | ECharts | 五数+离群值 |
 | 13 | **山脊图 Ridgeline** | D3.js | 多 KDE 叠放,看分布演化 |
 | 18 | **蜂群图 Beeswarm** | D3.js | 不重叠散点,看每个观测 |
+| 24 | **小提琴图 Violin** | D3.js | KDE 曲线+箱线,看分布形态 |
 
 ### C. 层级 / 占比类
 | # | 图表 | 技术 | 一句话 |
 |---|------|------|--------|
 | 11 | **矩形树图 Treemap** | ECharts | 嵌套矩形,面积=占比 |
 | 12 | **旭日图 Sunburst** | ECharts | 径向层级,同心圆环 |
+| 27 | **圆填充 Circle Packing** | D3.js | 嵌套圆,面积=数值 |
+| 28 | **径向树 Radial Tree** | D3.js | 树形图弯成圆形 |
+| 30 | **漏斗图 Funnel** | ECharts | 转化漏斗,一眼看流失 |
+| 31 | **瀑布图 Waterfall** | ECharts | 累计增减,悬浮柱 |
 
 ### D. 时序 / 演化类
 | # | 图表 | 技术 | 一句话 |
@@ -93,6 +122,7 @@ vis/
 | 05 | **演化时间线** | D3.js | 多轨道叙事,缩放+播放 |
 | 16 | **日历热力图** | ECharts | GitHub 风格全年格 |
 | 09 | **DTW 时间规整** | D3.js | 序列对齐+代价矩阵+路径 |
+| 32 | **K 线图 Candlestick** | ECharts | OHLC 金融走势 |
 
 ### E. 多维 / 矩阵类
 | # | 图表 | 技术 | 一句话 |
@@ -101,6 +131,9 @@ vis/
 | 07 | **降维图** | Plotly | PCA/t-SNE/UMAP,2D/3D |
 | 14 | **平行坐标图** | ECharts | N维一条线,brush 过滤 |
 | 22 | **切尔诺夫脸** | D3.js | 多维映射五官,趣味识别 |
+| 23 | **雷达图 Radar** | ECharts | 多维对比,闭合多边形 |
+| 25 | **气泡图 Bubble** | ECharts | 散点+大小,三维度 |
+| 26 | **斜率图 Slope** | D3.js | 两时间点连线,排名变化 |
 
 ### F. 空间 / 文本 / 三维类
 | # | 图表 | 技术 | 一句话 |
@@ -108,6 +141,7 @@ vis/
 | 15 | **泰森多边形 Voronoi** | D3.js | 空间势力划分 |
 | 20 | **词云 Word Cloud** | wordcloud2 | 词频可视化,多种形状 |
 | 21 | **3D 曲面 Surface** | Plotly | z=f(x,y),数学/科学函数 |
+| 29 | **密度等值线 Contour** | D3.js | 2D KDE 等高线 |
 
 ---
 
@@ -115,13 +149,42 @@ vis/
 
 | 库 | 版本 | 用途 | 图表数 |
 |----|------|------|--------|
-| **ECharts** | 5.5 | 声明式高级图表 | 8(桑基/箱线/热力/弦/树/旭日/平行/日历) |
-| **D3.js** | 7 | 低层定制可视化 | 10(河流/演化/网络/DTW/山脊/Voronoi/弧/蜂群/边捆绑/切尔诺夫) |
+| **ECharts** | 5.5 | 声明式高级图表 | 12(桑基/箱线/热力/弦/树/旭日/平行/日历/雷达/气泡/漏斗/瀑布/K线) |
+| **D3.js** | 7 | 低层定制可视化 | 13(河流/演化/网络/DTW/山脊/Voronoi/弧/蜂群/边捆绑/切尔诺夫/小提琴/斜率/圆填充/径向树/等值线) |
 | **Plotly** | 2.35 | 科学计算 + 3D | 2(降维/曲面) |
 | **Cytoscape.js** | 3.30 | 专业图分析 | 1(知识图谱) |
 | **wordcloud2.js** | 1.2 | 词云专用 | 1(词云) |
 
-详见 [`resources.md`](./resources.md),含框架对比、官方文档、论文、灵感网站。
+详见 [`resources.html`](./resources.html),含框架对比、官方文档、论文、灵感网站。
+
+---
+
+## 🧭 学习功能:算法解释区
+
+5 张支持多算法的图表,在**全屏页**图示下方提供可滚动的算法卡片,下滑即可学习:
+
+| 图表 | 算法数 | 覆盖内容 |
+|------|--------|----------|
+| 03 河流图 | 4 | Wiggle / Silhouette / Expand / Zero 偏移算法 |
+| 07 降维图 | 3 | PCA / t-SNE / UMAP |
+| 08 知识图谱 | 4 | Cose / Breadthfirst / Circle / Concentric 布局 |
+| 09 DTW | 3 | 欧氏距离 / DTW / Sakoe-Chiba 窗口 |
+| 21 3D 曲面 | 4 | 波纹 / 鞍点 / 高斯峰 / 径向波函数 |
+
+每张卡片包含:**算法名称** + **英文名** + **通俗解释** + **适用场景**。
+
+---
+
+## 🔧 全屏代码视图 · Agent 二创
+
+任意图表**全屏打开**后,右上角有「查看代码」按钮:
+
+1. 弹窗显示**干净的可运行源码**(已自动剥离返回按钮、工具脚本等噪声)
+2. 顶部附**Agent 二创注释头**,说明图表名称、场景入口、阅读方式和二创建议
+3. 点击「复制 Copy」一键复制到剪贴板
+4. 粘贴给 AI Agent,即可基于示例代码做二次开发
+
+也可在详情页点击「查看代码 </>」直接跳转并自动打开弹窗。
 
 ---
 
@@ -136,7 +199,7 @@ vis/
 5. **切尔诺夫脸 + 3D** → 数据艺术装置
 6. **Voronoi + 加权** → 设施选址决策系统
 
-完整建议见 [`resources.md`](./resources.md)。
+完整建议见 [`resources.html`](./resources.html)。
 
 ---
 
@@ -144,7 +207,7 @@ vis/
 
 ```
 第 1 周:逐张体验 32 个 demo,理解每张图"看什么数据"
-第 2 周:精读 D3.js 的 10 张图(自由度最高,学完收益最大)
+第 2 周:精读 D3.js 的 13 张图(自由度最高,学完收益最大)
 第 3 周:把降维图/平行坐标接上自己的真实数据
 第 4 周:挑 1 张图做深度二创(推荐 DTW / 知识图谱 / 山脊图)
 ```
