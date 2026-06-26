@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none">
+  <!-- Vis Handbook Logo: V 形 + 数据节点网络,象征"可视化图谱" -->
+  <rect width="48" height="48" rx="8" fill="#2c5282"/>
+  <!-- V 形主路径:两条斜线交汇 -->
+  <path d="M10 12 L24 38 L38 12" stroke="#faf9f6" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  <!-- 数据节点:V 的关键位置 -->
+  <circle cx="10" cy="12" r="3" fill="#faf9f6"/>
+  <circle cx="24" cy="38" r="3" fill="#faf9f6"/>
+  <circle cx="38" cy="12" r="3" fill="#faf9f6"/>
+  <!-- 辅助连线:暗示网络/关系 -->
+  <line x1="17" y1="25" x2="24" y2="25" stroke="#faf9f6" stroke-width="1" stroke-opacity="0.4"/>
+  <line x1="24" y1="25" x2="31" y2="25" stroke="#faf9f6" stroke-width="1" stroke-opacity="0.4"/>
+  <circle cx="17" cy="25" r="1.8" fill="#faf9f6" fill-opacity="0.5"/>
+  <circle cx="31" cy="25" r="1.8" fill="#faf9f6" fill-opacity="0.5"/>
+</svg>

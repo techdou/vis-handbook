@@ -64,15 +64,13 @@ body {
   border-bottom: 1px solid var(--rule);
 }
 .brand {
-  display: flex; align-items: baseline; gap: 14px;
+  display: flex; align-items: center; gap: 12px;
 }
 .brand-logo {
-  font-family: var(--font-serif);
-  font-size: 28px;
-  font-style: italic;
-  font-weight: 600;
-  color: var(--accent);
-  letter-spacing: -0.02em;
+  width: 36px; height: 36px;
+  border-radius: 7px;
+  display: block;
+  flex-shrink: 0;
 }
 .brand-name {
   font-size: 17px; font-weight: 600; color: var(--ink);
@@ -511,7 +509,7 @@ body {
 @media (max-width: 768px) {
   /* 顶部导航紧凑 */
   .topbar { padding: 12px 20px; }
-  .brand-logo { font-size: 24px; }
+  .brand-logo { width: 30px; height: 30px; }
   .brand-name { font-size: 15px; }
   .brand-sub { display: none; }
   .nav-actions { gap: 0; }
