@@ -130,8 +130,9 @@
       const allVals = d.items.flatMap(it => [it.left, it.right]);
       const lo = Math.min(...allVals), hi = Math.max(...allVals);
       const pad = (hi - lo) * 0.08 || 1;
+      // 排名场景：rank 1 在顶、rank 10 在底(SVG y 向下,故 domain 用正常递增 [小, 大])
       const y = d3.scaleLinear()
-        .domain(isRank ? [Math.max(hi + 1, 1), Math.max(lo - 1, 0)] : [lo - pad, hi + pad])
+        .domain(isRank ? [Math.max(lo - 1, 0), Math.max(hi + 1, 1)] : [lo - pad, hi + pad])
         .range([margin.top, H - margin.bottom]);
 
       const x1 = margin.left, x2 = W - margin.right;
