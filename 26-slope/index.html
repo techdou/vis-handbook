@@ -68,6 +68,7 @@
 
     const DATASETS = {
       rank: {
+        lowerIsBetter: true, // 排名：数值越小 = 名次越高 = "上升"
         title: '球队赛季排名变化 (2023 → 2024)',
         leftLabel: '2023 赛季', rightLabel: '2024 赛季',
         items: [
@@ -109,8 +110,11 @@
     let curSet = 'rank';
 
     function colorOf(item) {
-      if (item.right < item.left) return '#4a6741'; // 数值升 = 绿(排名降)
-      if (item.right > item.left) return '#9c4221'; // 数值降 = 红
+      // "better" = 视觉上的上升方向：排名场景取数值变小，其余场景取数值变大
+      const better = DATASETS[curSet].lowerIsBetter ? (item.right < item.left) : (item.right > item.left);
+      const worse  = DATASETS[curSet].lowerIsBetter ? (item.right > item.left) : (item.right < item.left);
+      if (better) return '#4a6741'; // 绿 = 上升(名次前进 / 数值增长)
+      if (worse)  return '#9c4221'; // 红 = 下降
       return '#6b6b6b';
     }
 
